@@ -364,6 +364,13 @@ select {
   margin-bottom: 10px;
 }
 
+.table-center-level {
+  font-size: 16px;
+  font-weight: 900;
+  color: #60a5fa;
+  letter-spacing: 1.4px;
+}
+
 .table-center-pots {
   display: grid;
   gap: 8px;
@@ -401,10 +408,19 @@ select {
 }
 
 .table-center-blinds {
-  font-size: 12px;
-  font-weight: 800;
-  color: #94a3b8;
-  letter-spacing: 0.6px;
+  display: flex;
+  justify-content: center;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 20px;
+  font-weight: 900;
+  color: #f8fafc;
+}
+
+.table-center-blind-values {
+  font-size: 20px;
+  font-weight: 900;
+  color: #f8fafc;
 }
 
 .table-seat-wrap {

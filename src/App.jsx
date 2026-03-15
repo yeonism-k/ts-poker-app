@@ -664,6 +664,8 @@ function OvalTableLayout({ state, positionLabels, selectedSeatIndex, onSelectSea
   const potItems = getDisplayPotItems(state);
   const currentStreet = streetLabel(state.street).toUpperCase();
   const blindText = `${state.smallBlind || 0} / ${state.bigBlind || 0} / ${state.ante || 0}`;
+  const blindLevel = `LEVEL ${Number(state.currentBlindLevelIndex || 0) + 1}`;
+  const blindLevelText = `LV ${Number(state.currentBlindLevelIndex || 0) + 1}`;
 
   return (
     <div className="table-stage">
@@ -671,6 +673,7 @@ function OvalTableLayout({ state, positionLabels, selectedSeatIndex, onSelectSea
         <div className="poker-table-oval">
           <div className="table-center-hud">
             <div className="table-center-street">{currentStreet}</div>
+            <div className="table-center-level">{blindLevelText}</div>
 
             <div className="table-center-pots">
               {potItems.map((item, idx) => (
@@ -687,7 +690,10 @@ function OvalTableLayout({ state, positionLabels, selectedSeatIndex, onSelectSea
               ))}
             </div>
 
-            <div className="table-center-blinds">{blindText}</div>
+            <div className="table-center-blinds">
+  <span className="table-center-level">{blindLevel}</span>
+  <span className="table-center-blind-values">{blindText}</span>
+</div>
           </div>
 
           {Array.from({ length: MAX_SEATS }).map((_, seatIndex) => (
