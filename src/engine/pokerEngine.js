@@ -1,5 +1,6 @@
 const STREET_ORDER = ["preflop", "flop", "turn", "river", "showdown", "finished"];
 export const MAX_SEATS = 10;
+export const DEFAULT_CHIP_UNIT = 100;
 
 function clone(obj) {
   return JSON.parse(JSON.stringify(obj));
@@ -10,45 +11,59 @@ function n(v, fallback = 0) {
   return Number.isFinite(x) ? x : fallback;
 }
 
-function makeBlindLevel(level, smallBlind, bigBlind, ante) {
+function getChipUnit(stateLike) {
+  return Math.max(1, n(stateLike?.chipUnit, DEFAULT_CHIP_UNIT));
+}
+
+function chipFloor(value, chipUnit = DEFAULT_CHIP_UNIT) {
+  const num = Number(value) || 0;
+  return Math.floor(num / chipUnit) * chipUnit;
+}
+
+function sortSeatIndicesFromDealerLeft(seatIndices, dealerSeatIndex, maxSeats) {
+  return [...seatIndices].sort((a, b) => {
+    const da = (a - dealerSeatIndex + maxSeats) % maxSeats;
+    const db = (b - dealerSeatIndex + maxSeats) % maxSeats;
+    return da - db;
+  });
+}
+
+function makeBlindLevel(level, smallBlind, bigBlind, ante, chipUnit = DEFAULT_CHIP_UNIT) {
   return {
     level,
-    smallBlind: n(smallBlind, 0),
-    bigBlind: n(bigBlind, 0),
-    ante: n(ante, 0),
+    smallBlind: chipFloor(n(smallBlind, 0), chipUnit),
+    bigBlind: chipFloor(n(bigBlind, 0), chipUnit),
+    ante: chipFloor(n(ante, 0), chipUnit),
   };
 }
 
-function normalizeBlindLevels(levels) {
-  const source = Array.isArray(levels) && levels.length
-    ? levels
-    : [
-        makeBlindLevel(1, 50, 100, 100),
-        makeBlindLevel(2, 100, 200, 200),
-        makeBlindLevel(3, 200, 400, 400),
-        makeBlindLevel(4, 300, 600, 600),
-        makeBlindLevel(5, 500, 1000, 1000),
-      ];
+function normalizeBlindLevels(levels, chipUnit = DEFAULT_CHIP_UNIT) {
+  const source =
+    Array.isArray(levels) && levels.length
+      ? levels
+      : [
+          makeBlindLevel(1, 100, 200, 200, chipUnit),
+          makeBlindLevel(2, 200, 400, 400, chipUnit),
+          makeBlindLevel(3, 300, 600, 600, chipUnit),
+          makeBlindLevel(4, 500, 1000, 1000, chipUnit),
+          makeBlindLevel(5, 1000, 2000, 2000, chipUnit),
+        ];
 
   return source.map((item, idx) =>
-    makeBlindLevel(
-      idx + 1,
-      item?.smallBlind,
-      item?.bigBlind,
-      item?.ante
-    )
+    makeBlindLevel(idx + 1, item?.smallBlind, item?.bigBlind, item?.ante, chipUnit)
   );
 }
 
-function clampBlindLevelIndex(levels, index) {
-  const normalized = normalizeBlindLevels(levels);
+function clampBlindLevelIndex(levels, index, chipUnit = DEFAULT_CHIP_UNIT) {
+  const normalized = normalizeBlindLevels(levels, chipUnit);
   if (!normalized.length) return 0;
   return Math.max(0, Math.min(n(index, 0), normalized.length - 1));
 }
 
 function applyBlindLevelToState(state, index) {
-  const levels = normalizeBlindLevels(state.blindLevels);
-  const nextIndex = clampBlindLevelIndex(levels, index);
+  const chipUnit = getChipUnit(state);
+  const levels = normalizeBlindLevels(state.blindLevels, chipUnit);
+  const nextIndex = clampBlindLevelIndex(levels, index, chipUnit);
   const level = levels[nextIndex];
 
   state.blindLevels = levels;
@@ -61,7 +76,8 @@ function applyBlindLevelToState(state, index) {
 }
 
 function applyPendingBlindLevel(state) {
-  const levels = normalizeBlindLevels(state.blindLevels);
+  const chipUnit = getChipUnit(state);
+  const levels = normalizeBlindLevels(state.blindLevels, chipUnit);
   const pendingIndex =
     state.pendingBlindLevelIndex == null
       ? state.currentBlindLevelIndex ?? 0
@@ -204,8 +220,8 @@ function getFirstToActPostflop(seats, dealerSeatIndex) {
   return nextSeatIndex(seats, dealerSeatIndex, (p) => canAct(p));
 }
 
-function pay(player, amount, countAsStreet = true) {
-  const invest = Math.max(0, Math.min(n(amount), player.stack));
+function pay(player, amount, chipUnit, countAsStreet = true) {
+  const invest = Math.max(0, Math.min(chipFloor(n(amount), chipUnit), player.stack));
   player.stack -= invest;
   player.totalInvested += invest;
 
@@ -220,8 +236,8 @@ function pay(player, amount, countAsStreet = true) {
   return invest;
 }
 
-function refund(player, amount, countAsStreet = true) {
-  const value = Math.max(0, n(amount));
+function refund(player, amount, chipUnit, countAsStreet = true) {
+  const value = Math.max(0, chipFloor(n(amount), chipUnit));
   player.stack += value;
   player.totalInvested = Math.max(0, player.totalInvested - value);
 
@@ -286,19 +302,31 @@ function mergePendingExcess(items) {
 }
 
 function recomputePotState(seats) {
+  const isLiveEligible = (p) => p && p.inHand && !p.sitOut && !p.folded;
+
+  const liveEligibleSeatIndices = seats
+    .map((p, seatIndex) => ({ p, seatIndex }))
+    .filter(({ p }) => isLiveEligible(p))
+    .map(({ seatIndex }) => seatIndex);
+
   const invested = seats
-    .map((p, seatIndex) =>
-      p && p.totalInvested > 0
-        ? {
-            seatIndex,
-            invested: p.totalInvested,
-            folded: p.folded,
-            inHand: p.inHand,
-            sitOut: p.sitOut,
-            allIn: p.allIn,
-          }
-        : null
-    )
+    .map((p, seatIndex) => {
+      if (!p || p.totalInvested <= 0) return null;
+
+      const anteInvested = p.anteInvested || 0;
+      const betInvested = Math.max(0, p.totalInvested - anteInvested);
+
+      return {
+        seatIndex,
+        totalInvested: p.totalInvested,
+        anteInvested,
+        betInvested,
+        folded: p.folded,
+        inHand: p.inHand,
+        sitOut: p.sitOut,
+        allIn: p.allIn,
+      };
+    })
     .filter(Boolean);
 
   if (!invested.length) {
@@ -308,66 +336,81 @@ function recomputePotState(seats) {
     };
   }
 
-  const isLiveEligible = (p) => p.inHand && !p.sitOut && !p.folded;
+  const anteTotal = invested.reduce((sum, p) => sum + (p.anteInvested || 0), 0);
+  const betContributors = invested.filter((p) => p.betInvested > 0);
 
-  const liveEligible = invested.filter(isLiveEligible).map((p) => p.seatIndex);
-  if (liveEligible.length < 2) {
-    return {
-      confirmedPots: [],
-      pendingExcess: [],
-    };
-  }
+  let confirmedPots = [];
+  let pendingExcess = [];
 
-  const hasAllInPlayer = invested.some((p) => p.allIn);
+  if (betContributors.length > 0 && liveEligibleSeatIndices.length >= 2) {
+    const hasAllInPlayer = betContributors.some((p) => p.allIn);
 
-  if (!hasAllInPlayer) {
-    return {
-      confirmedPots: [
+    if (!hasAllInPlayer) {
+      confirmedPots = [
         {
-          amount: invested.reduce((sum, p) => sum + p.invested, 0),
-          eligibleSeatIndices: liveEligible,
+          amount: betContributors.reduce((sum, p) => sum + p.betInvested, 0),
+          eligibleSeatIndices: [...liveEligibleSeatIndices],
         },
-      ],
-      pendingExcess: [],
-    };
+      ];
+    } else {
+      const levels = [...new Set(betContributors.map((p) => p.betInvested))].sort((a, b) => a - b);
+      let prev = 0;
+
+      for (const level of levels) {
+        const contributors = betContributors.filter((p) => p.betInvested >= level);
+        const slice = level - prev;
+        const amount = slice * contributors.length;
+
+        if (amount <= 0) {
+          prev = level;
+          continue;
+        }
+
+        const eligibleSeatIndices = contributors
+          .filter((p) => isLiveEligible(seats[p.seatIndex]))
+          .map((p) => p.seatIndex);
+
+        if (contributors.length >= 2) {
+          confirmedPots.push({
+            amount,
+            eligibleSeatIndices,
+          });
+        } else if (contributors.length === 1) {
+          pendingExcess.push({
+            seatIndex: contributors[0].seatIndex,
+            amount,
+          });
+        }
+
+        prev = level;
+      }
+
+      confirmedPots = mergeSameEligiblePots(confirmedPots);
+      pendingExcess = mergePendingExcess(pendingExcess);
+    }
   }
 
-  const levels = [...new Set(invested.map((p) => p.invested))].sort((a, b) => a - b);
-
-  const confirmedPots = [];
-  const pendingExcess = [];
-  let prev = 0;
-
-  for (const level of levels) {
-    const contributors = invested.filter((p) => p.invested >= level);
-    const slice = level - prev;
-    const amount = slice * contributors.length;
-
-    if (amount <= 0) {
-      prev = level;
-      continue;
+  if (anteTotal > 0 && liveEligibleSeatIndices.length >= 2) {
+    if (confirmedPots.length > 0) {
+      confirmedPots[0] = {
+        amount: confirmedPots[0].amount + anteTotal,
+        eligibleSeatIndices: [
+          ...new Set([...confirmedPots[0].eligibleSeatIndices, ...liveEligibleSeatIndices]),
+        ].sort((a, b) => a - b),
+      };
+    } else {
+      confirmedPots = [
+        {
+          amount: anteTotal,
+          eligibleSeatIndices: [...liveEligibleSeatIndices],
+        },
+      ];
     }
-
-    const eligibleSeatIndices = contributors.filter(isLiveEligible).map((p) => p.seatIndex);
-
-    if (contributors.length >= 2) {
-      confirmedPots.push({
-        amount,
-        eligibleSeatIndices,
-      });
-    } else if (contributors.length === 1) {
-      pendingExcess.push({
-        seatIndex: contributors[0].seatIndex,
-        amount,
-      });
-    }
-
-    prev = level;
   }
 
   return {
-    confirmedPots: mergeSameEligiblePots(confirmedPots),
-    pendingExcess: mergePendingExcess(pendingExcess),
+    confirmedPots,
+    pendingExcess,
   };
 }
 
@@ -479,31 +522,39 @@ function snapshotForHistory(state) {
 }
 
 function returnUncalledExcess(state) {
+  const chipUnit = getChipUnit(state);
+
   const invested = state.seats
-    .map((p, seatIndex) =>
-      p && p.totalInvested > 0
+    .map((p, seatIndex) => {
+      if (!p) return null;
+
+      const anteInvested = p.anteInvested || 0;
+      const betInvested = Math.max(0, (p.totalInvested || 0) - anteInvested);
+
+      return betInvested > 0
         ? {
             seatIndex,
-            totalInvested: p.totalInvested,
+            betInvested,
             streetInvested: p.streetInvested,
           }
-        : null
-    )
+        : null;
+    })
     .filter(Boolean)
-    .sort((a, b) => b.totalInvested - a.totalInvested);
+    .sort((a, b) => b.betInvested - a.betInvested);
 
   if (invested.length < 2) return 0;
 
   const top = invested[0];
   const second = invested[1];
-  if (top.totalInvested <= second.totalInvested) return 0;
+  if (top.betInvested <= second.betInvested) return 0;
 
-  const uncalled = top.totalInvested - second.totalInvested;
+  const uncalled = top.betInvested - second.betInvested;
   const player = state.seats[top.seatIndex];
   if (!player || uncalled <= 0) return 0;
 
   const streetRefund = Math.min(player.streetInvested, uncalled);
-  refund(player, uncalled, false);
+  refund(player, uncalled, chipUnit, false);
+
   if (streetRefund > 0) {
     player.streetInvested = Math.max(0, player.streetInvested - streetRefund);
   }
@@ -530,6 +581,7 @@ function finishHandState(state) {
   state.seats.forEach((p) => {
     if (!p) return;
     p.totalInvested = 0;
+    p.anteInvested = 0;
     p.streetInvested = 0;
     p.acted = false;
     p.folded = false;
@@ -604,13 +656,16 @@ function countAvailablePlayers(seats) {
   return seats.filter((p) => isAvailableForHand(p)).length;
 }
 
-function makePlayer(id, name, stack) {
+function makePlayer(id, name, stack, chipUnit = DEFAULT_CHIP_UNIT) {
+  const normalizedStack = chipFloor(stack, chipUnit);
+
   return {
     id,
     name,
-    startStack: stack,
-    stack,
+    startStack: normalizedStack,
+    stack: normalizedStack,
     totalInvested: 0,
+    anteInvested: 0,
     streetInvested: 0,
     folded: false,
     allIn: false,
@@ -626,16 +681,53 @@ function nextPlayerId(seats) {
   return ids.length ? Math.max(...ids) + 1 : 1;
 }
 
-export function createInitialSetup() {
-  const seats = Array(MAX_SEATS).fill(null);
-  seats[0] = makePlayer(1, "P1", 5000);
-  seats[1] = makePlayer(2, "P2", 5000);
-  seats[2] = makePlayer(3, "P3", 5000);
-  seats[3] = makePlayer(4, "P4", 5000);
+function normalizeStateToChipUnit(state, nextChipUnit) {
+  state.chipUnit = nextChipUnit;
 
-  const blindLevels = normalizeBlindLevels();
+  state.blindLevels = normalizeBlindLevels(state.blindLevels, nextChipUnit);
+
+  const currentIdx = clampBlindLevelIndex(state.blindLevels, state.currentBlindLevelIndex, nextChipUnit);
+  const pendingIdx = clampBlindLevelIndex(state.blindLevels, state.pendingBlindLevelIndex, nextChipUnit);
+
+  state.currentBlindLevelIndex = currentIdx;
+  state.pendingBlindLevelIndex = pendingIdx;
+
+  const currentLevel = state.blindLevels[currentIdx];
+  state.smallBlind = chipFloor(currentLevel.smallBlind, nextChipUnit);
+  state.bigBlind = chipFloor(currentLevel.bigBlind, nextChipUnit);
+  state.ante = chipFloor(currentLevel.ante, nextChipUnit);
+
+  state.minRaise = chipFloor(state.minRaise || state.bigBlind, nextChipUnit);
+
+  state.seats = state.seats.map((p) => {
+    if (!p) return null;
+
+    return {
+      ...p,
+      startStack: chipFloor(p.startStack, nextChipUnit),
+      stack: chipFloor(p.stack, nextChipUnit),
+      totalInvested: chipFloor(p.totalInvested, nextChipUnit),
+      anteInvested: chipFloor(p.anteInvested || 0, nextChipUnit),
+      streetInvested: chipFloor(p.streetInvested, nextChipUnit),
+    };
+  });
+
+  updateDerived(state);
+  return state;
+}
+
+export function createInitialSetup() {
+  const chipUnit = DEFAULT_CHIP_UNIT;
+  const seats = Array(MAX_SEATS).fill(null);
+  seats[0] = makePlayer(1, "P1", 5000, chipUnit);
+  seats[1] = makePlayer(2, "P2", 5000, chipUnit);
+  seats[2] = makePlayer(3, "P3", 5000, chipUnit);
+  seats[3] = makePlayer(4, "P4", 5000, chipUnit);
+
+  const blindLevels = normalizeBlindLevels([], chipUnit);
 
   return {
+    chipUnit,
     smallBlind: blindLevels[0].smallBlind,
     bigBlind: blindLevels[0].bigBlind,
     ante: blindLevels[0].ante,
@@ -665,14 +757,29 @@ export function createInitialSetup() {
   };
 }
 
+export function runChipRace(prevState, nextChipUnitRaw) {
+  const state = clone(prevState);
+  const nextChipUnit = Math.max(1, n(nextChipUnitRaw, getChipUnit(state)));
+  const currentChipUnit = getChipUnit(state);
+
+  if (nextChipUnit === currentChipUnit) return state;
+  if (nextChipUnit < currentChipUnit) return state;
+  if (state.street !== "setup" && state.street !== "finished") return state;
+
+  normalizeStateToChipUnit(state, nextChipUnit);
+  state.log = [...(state.log || []), `Chip race completed: chip unit ${currentChipUnit} -> ${nextChipUnit}`];
+  return state;
+}
+
 export function startHand(setupState, keepStacks = false) {
   const state = clone(setupState);
+  const chipUnit = getChipUnit(state);
 
   applyPendingBlindLevel(state);
 
   state.street = "preflop";
   state.currentBet = 0;
-  state.minRaise = n(state.bigBlind, 100);
+  state.minRaise = n(state.bigBlind, chipUnit);
   state.log = [];
   state.history = [];
   state.streetBetLevel = 0;
@@ -690,12 +797,14 @@ export function startHand(setupState, keepStacks = false) {
   state.seats = state.seats.map((p) => {
     if (!p) return null;
     const stackBase = keepStacks ? n(p.stack, p.startStack) : n(p.startStack, 0);
-    const available = !p.sitOut && stackBase > 0;
+    const normalizedStack = chipFloor(stackBase, chipUnit);
+    const available = !p.sitOut && normalizedStack > 0;
 
     return {
       ...p,
-      stack: stackBase,
+      stack: normalizedStack,
       totalInvested: 0,
+      anteInvested: 0,
       streetInvested: 0,
       folded: false,
       allIn: false,
@@ -723,10 +832,28 @@ export function startHand(setupState, keepStacks = false) {
   const { sbPositionSeatIndex, bbPositionSeatIndex, sbSeatIndex, bbSeatIndex } =
     getBlindAssignments(state.seats, state.dealerSeatIndex);
 
-  const sbPaid = sbSeatIndex >= 0 ? pay(state.seats[sbSeatIndex], sb, true) : 0;
-  const bbPaid = bbSeatIndex >= 0 ? pay(state.seats[bbSeatIndex], bb, true) : 0;
+  const sbPaid = sbSeatIndex >= 0 ? pay(state.seats[sbSeatIndex], sb, chipUnit, true) : 0;
+  const bbPaid = bbSeatIndex >= 0 ? pay(state.seats[bbSeatIndex], bb, chipUnit, true) : 0;
   const bbAntePaid =
-    bbAnte > 0 && bbSeatIndex >= 0 ? pay(state.seats[bbSeatIndex], bbAnte, false) : 0;
+    bbAnte > 0 && bbSeatIndex >= 0 ? pay(state.seats[bbSeatIndex], bbAnte, chipUnit, false) : 0;
+
+  if (bbSeatIndex >= 0 && bbAntePaid > 0) {
+    state.seats[bbSeatIndex].anteInvested = bbAntePaid;
+  }
+
+  if (sbSeatIndex >= 0) {
+    const sbPlayer = state.seats[sbSeatIndex];
+    if (sbPlayer && sbPlayer.allIn) {
+      sbPlayer.streetActionLabel = "ALL-IN";
+    }
+  }
+
+  if (bbSeatIndex >= 0) {
+    const bbPlayer = state.seats[bbSeatIndex];
+    if (bbPlayer && bbPlayer.allIn) {
+      bbPlayer.streetActionLabel = "ALL-IN";
+    }
+  }
 
   state.forcedBets = {
     sbSeatIndex: sbPositionSeatIndex,
@@ -837,6 +964,8 @@ export function getForcedBetMarkers(state) {
 
 export function applyAction(prevState, action, rawAmount = 0) {
   const state = clone(prevState);
+  const chipUnit = getChipUnit(state);
+
   if (["setup", "showdown", "finished"].includes(state.street)) return state;
 
   state.history = [...(state.history || []), snapshotForHistory(prevState)];
@@ -846,7 +975,7 @@ export function applyAction(prevState, action, rawAmount = 0) {
   if (!player || !canAct(player)) return state;
 
   const toCall = Math.max(0, state.currentBet - player.streetInvested);
-  const amount = n(rawAmount, 0);
+  const amount = chipFloor(n(rawAmount, 0), chipUnit);
 
   switch (action) {
     case "fold":
@@ -864,7 +993,7 @@ export function applyAction(prevState, action, rawAmount = 0) {
       break;
 
     case "call": {
-      const paid = pay(player, toCall, true);
+      const paid = pay(player, toCall, chipUnit, true);
       player.acted = true;
       player.streetActionLabel = "CALL";
       state.log.push(`${player.name}: call ${paid}`);
@@ -883,7 +1012,7 @@ export function applyAction(prevState, action, rawAmount = 0) {
 
       if (!isAllInAttempt && !isFullBet) return prevState;
 
-      const paid = pay(player, target - player.streetInvested, true);
+      const paid = pay(player, target - player.streetInvested, chipUnit, true);
       const newBet = player.streetInvested;
 
       if (newBet <= 0) return prevState;
@@ -921,7 +1050,7 @@ export function applyAction(prevState, action, rawAmount = 0) {
 
       if (!isAllInAttempt && !isFullRaise) return prevState;
 
-      const paid = pay(player, target - player.streetInvested, true);
+      const paid = pay(player, target - player.streetInvested, chipUnit, true);
       const newBet = player.streetInvested;
       const previousBet = state.currentBet;
 
@@ -953,9 +1082,7 @@ export function applyAction(prevState, action, rawAmount = 0) {
       if (player.stack <= 0) return prevState;
 
       const prevCurrentBet = state.currentBet;
-      const maxTotal = player.streetInvested + player.stack;
-
-      const paid = pay(player, player.stack, true);
+      const paid = pay(player, player.stack, chipUnit, true);
       const newBet = player.streetInvested;
 
       if (newBet <= prevCurrentBet) {
@@ -974,7 +1101,10 @@ export function applyAction(prevState, action, rawAmount = 0) {
 
         if (isFullBet) {
           state.minRaise = newBet;
-          player.streetActionLabel = `${getAggressiveLabel(state.street, state.streetBetLevel)} ALL-IN`;
+          player.streetActionLabel = `${getAggressiveLabel(
+            state.street,
+            state.streetBetLevel
+          )} ALL-IN`;
           state.streetBetLevel += 1;
           resetPendingPlayersActed(state, idx);
         } else {
@@ -996,7 +1126,10 @@ export function applyAction(prevState, action, rawAmount = 0) {
       if (isFullRaise) {
         const raiseSize = newBet - prevCurrentBet;
         state.minRaise = raiseSize;
-        player.streetActionLabel = `${getAggressiveLabel(state.street, state.streetBetLevel)} ALL-IN`;
+        player.streetActionLabel = `${getAggressiveLabel(
+          state.street,
+          state.streetBetLevel
+        )} ALL-IN`;
         state.streetBetLevel += 1;
         resetPendingPlayersActed(state, idx);
       } else {
@@ -1018,6 +1151,8 @@ export function applyAction(prevState, action, rawAmount = 0) {
 
 export function settleShowdown(prevState, winnersByPot) {
   const state = clone(prevState);
+  const chipUnit = getChipUnit(state);
+
   if (state.street !== "showdown") return state;
 
   state.history = [...(state.history || []), snapshotForHistory(prevState)];
@@ -1029,21 +1164,50 @@ export function settleShowdown(prevState, winnersByPot) {
 
     if (!winners.length) return;
 
-    const share = Math.floor(pot.amount / winners.length);
-    const remainder = pot.amount % winners.length;
+    const orderedWinners = sortSeatIndicesFromDealerLeft(
+      winners,
+      state.dealerSeatIndex,
+      state.seats.length
+    );
 
-    winners.forEach((seatIndex, idx) => {
+    const totalUnits = Math.floor((Number(pot.amount) || 0) / chipUnit);
+    const shareUnits = Math.floor(totalUnits / orderedWinners.length);
+    const oddUnits = totalUnits % orderedWinners.length;
+
+    orderedWinners.forEach((seatIndex, idx) => {
       const p = state.seats[seatIndex];
-      if (p) {
-        p.stack += share + (idx < remainder ? 1 : 0);
-      }
+      if (!p) return;
+
+      const unitsWon = shareUnits + (idx < oddUnits ? 1 : 0);
+      p.stack += unitsWon * chipUnit;
     });
 
-    const names = winners
+    const distributedAmount = totalUnits * chipUnit;
+    const undistributed = (Number(pot.amount) || 0) - distributedAmount;
+
+    const names = orderedWinners
       .map((seatIndex) => state.seats[seatIndex]?.name)
       .filter(Boolean)
       .join(", ");
+
     state.log.push(`Pot ${potIndex + 1} (${pot.amount}) -> ${names}`);
+
+    if (oddUnits > 0) {
+      const oddChipNames = orderedWinners
+        .slice(0, oddUnits)
+        .map((seatIndex) => state.seats[seatIndex]?.name)
+        .filter(Boolean)
+        .join(", ");
+      state.log.push(
+        `Odd chip (${oddUnits * chipUnit}) awarded from dealer-left order: ${oddChipNames}`
+      );
+    }
+
+    if (undistributed > 0) {
+      state.log.push(
+        `Warning: ${undistributed} could not be distributed because chip unit is ${chipUnit}`
+      );
+    }
   });
 
   finishHandState(state);
@@ -1052,14 +1216,16 @@ export function settleShowdown(prevState, winnersByPot) {
 
 export function addPlayerToSeat(prevState, seatIndex, playerData) {
   const state = clone(prevState);
+  const chipUnit = getChipUnit(state);
+
   if (seatIndex < 0 || seatIndex >= MAX_SEATS) return state;
   if (state.seats[seatIndex]) return state;
 
   const id = nextPlayerId(state.seats);
-  const stack = n(playerData?.stack, 5000);
+  const stack = chipFloor(n(playerData?.stack, 5000), chipUnit);
   const name = playerData?.name?.trim() || `P${id}`;
 
-  state.seats[seatIndex] = makePlayer(id, name, stack);
+  state.seats[seatIndex] = makePlayer(id, name, stack, chipUnit);
   state.log.push(`${name} takes seat ${seatIndex + 1} and will enter next hand`);
   return state;
 }

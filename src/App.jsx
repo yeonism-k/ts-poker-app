@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  DEFAULT_CHIP_UNIT,
   MAX_SEATS,
   addPlayerToSeat,
   applyAction,
@@ -7,6 +8,7 @@ import {
   getCallAmount,
   getMinRaiseTo,
   removePlayerFromSeat,
+  runChipRace,
   settleShowdown,
   startHand,
   startNextHand,
@@ -15,34 +17,86 @@ import {
   undoAction,
 } from "./engine/pokerEngine";
 
-function PlainNumberInput({ value, onChange, min = 0, step = 1 }) {
+function PlainNumberInput({ value, onChange, min = 0, step = DEFAULT_CHIP_UNIT }) {
+  const [draft, setDraft] = useState(String(value ?? ""));
+
+  useEffect(() => {
+    setDraft(String(value ?? ""));
+  }, [value]);
+
+  const commitValue = () => {
+    if (draft === "") {
+      setDraft(String(value ?? ""));
+      return;
+    }
+
+    const num = Number(draft);
+
+    if (!Number.isFinite(num) || num < min || num % step !== 0) {
+      setDraft(String(value ?? ""));
+      return;
+    }
+
+    onChange(num);
+    setDraft(String(num));
+  };
+
   return (
     <input
       type="number"
       min={min}
       step={step}
-      value={value}
-      onChange={(e) => onChange(Number(e.target.value))}
+      value={draft}
+      onChange={(e) => {
+        const next = e.target.value;
+
+        if (next === "") {
+          setDraft("");
+          return;
+        }
+
+        if (!/^\d+$/.test(next)) {
+          return;
+        }
+
+        setDraft(next);
+
+        const num = Number(next);
+        if (Number.isFinite(num) && num >= min && num % step === 0) {
+          onChange(num);
+        }
+      }}
+      onBlur={commitValue}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          e.currentTarget.blur();
+        }
+      }}
     />
   );
 }
 
-function normalizeBlindLevelsForApp(levels) {
+function floorToChipUnit(value, chipUnit = DEFAULT_CHIP_UNIT) {
+  const num = Number(value) || 0;
+  return Math.floor(num / chipUnit) * chipUnit;
+}
+
+function normalizeBlindLevelsForApp(levels, chipUnit = DEFAULT_CHIP_UNIT) {
   const source =
     Array.isArray(levels) && levels.length
       ? levels
-      : [{ level: 1, smallBlind: 50, bigBlind: 100, ante: 100 }];
+      : [{ level: 1, smallBlind: 100, bigBlind: 200, ante: 200 }];
 
   return source.map((item, idx) => ({
     level: idx + 1,
-    smallBlind: Number.isFinite(Number(item?.smallBlind)) ? Number(item.smallBlind) : 0,
-    bigBlind: Number.isFinite(Number(item?.bigBlind)) ? Number(item.bigBlind) : 0,
-    ante: Number.isFinite(Number(item?.ante)) ? Number(item.ante) : 0,
+    smallBlind: floorToChipUnit(item?.smallBlind, chipUnit),
+    bigBlind: floorToChipUnit(item?.bigBlind, chipUnit),
+    ante: floorToChipUnit(item?.ante, chipUnit),
   }));
 }
 
-function clampLevelIndex(levels, index) {
-  const normalized = normalizeBlindLevelsForApp(levels);
+function clampLevelIndex(levels, index, chipUnit = DEFAULT_CHIP_UNIT) {
+  const normalized = normalizeBlindLevelsForApp(levels, chipUnit);
   if (!normalized.length) return 0;
   return Math.max(0, Math.min(Number(index) || 0, normalized.length - 1));
 }
@@ -50,6 +104,20 @@ function clampLevelIndex(levels, index) {
 function levelSummary(level) {
   if (!level) return "-";
   return `${level.smallBlind} / ${level.bigBlind} / ${level.ante}`;
+}
+
+function formatBlind(value) {
+  const num = Number(value) || 0;
+
+  if (num >= 1000000) return `${num / 1000000}M`;
+  if (num >= 10000) return `${num / 1000}K`;
+
+  return `${num}`;
+}
+
+function formatPot(value) {
+  const num = Number(value) || 0;
+  return num.toLocaleString();
 }
 
 function getDisplayPotItems(state) {
@@ -134,11 +202,7 @@ function getPositionLabels(state) {
     }
 
     labels[dealerSeat] = "D/SB";
-
-    if (otherSeat >= 0) {
-      labels[otherSeat] = "BB";
-    }
-
+    if (otherSeat >= 0) labels[otherSeat] = "BB";
     return labels;
   }
 
@@ -162,6 +226,42 @@ function getPositionLabels(state) {
   return labels;
 }
 
+function ChipRaceControl({ chipUnit, onRunChipRace, disabled = false, compact = false }) {
+  const [nextUnit, setNextUnit] = useState(chipUnit);
+
+  useEffect(() => {
+    setNextUnit(chipUnit);
+  }, [chipUnit]);
+
+  const options = [100, 500, 1000, 5000, 10000, 25000, 50000, 100000];
+
+  return (
+    <div className={["chip-race-control", compact ? "chip-race-control-compact" : ""].join(" ")}>
+      <div className="chip-race-title">칩레이스</div>
+
+      <div className="chip-race-row">
+        <select value={nextUnit} onChange={(e) => setNextUnit(Number(e.target.value))}>
+          {options.map((value) => (
+            <option key={value} value={value}>
+              최소칩 {formatPot(value)}
+            </option>
+          ))}
+        </select>
+
+        <button
+          type="button"
+          disabled={disabled || nextUnit <= chipUnit}
+          onClick={() => onRunChipRace(nextUnit)}
+        >
+          적용
+        </button>
+      </div>
+
+      <div className="muted">현재 최소칩: {formatPot(chipUnit)}</div>
+    </div>
+  );
+}
+
 function BlindLevelsEditor({
   state,
   onSelectStartLevel,
@@ -170,83 +270,93 @@ function BlindLevelsEditor({
   onRemoveBlindLevel,
 }) {
   return (
-    <div className="blind-levels-panel">
-      <div className="blind-levels-head">
-        <h3>블라인드 레벨</h3>
-        <button type="button" onClick={onAddBlindLevel}>
-          + 레벨
-        </button>
+    <div className="setup-section-card setup-blind-section-card">
+      <div className="setup-section-head">
+        <div className="setup-section-head-text">
+          <h3>블라인드 레벨</h3>
+          <div className="setup-section-subtext">
+            시작 레벨을 선택하고 각 레벨의 SB / BB / Ante를 조정합니다.
+          </div>
+        </div>
+
+        <div className="setup-section-head-actions">
+          <button type="button" onClick={onAddBlindLevel}>
+            + 레벨
+          </button>
+        </div>
       </div>
 
-      <div className="blind-levels-list">
-        {state.blindLevels.map((level, idx) => {
-          const isSelected = idx === state.currentBlindLevelIndex;
+      <div className="blind-levels-panel">
+        <div className="blind-levels-list">
+          {state.blindLevels.map((level, idx) => {
+            const isSelected = idx === state.currentBlindLevelIndex;
 
-          return (
-            <div
-              key={idx}
-              className={[
-                "blind-level-row",
-                isSelected ? "blind-level-row-selected" : "",
-              ].join(" ")}
-            >
-              <div className="blind-level-row-top">
-                <div className="blind-level-badge">Lv {idx + 1}</div>
+            return (
+              <div
+                key={idx}
+                className={[
+                  "blind-level-row",
+                  isSelected ? "blind-level-row-selected" : "",
+                ].join(" ")}
+              >
+                <div className="blind-level-row-top">
+                  <div className="blind-level-badge">Lv {idx + 1}</div>
 
-                <div className="blind-level-row-actions">
-                  <button
-                    type="button"
-                    className={isSelected ? "primary" : ""}
-                    onClick={() => onSelectStartLevel(idx)}
-                  >
-                    {isSelected ? "선택됨" : "선택"}
-                  </button>
+                  <div className="blind-level-row-actions">
+                    <button
+                      type="button"
+                      className={isSelected ? "primary" : ""}
+                      onClick={() => onSelectStartLevel(idx)}
+                    >
+                      {isSelected ? "선택됨" : "선택"}
+                    </button>
 
-                  <button
-                    type="button"
-                    className="danger"
-                    disabled={state.blindLevels.length <= 1}
-                    onClick={() => onRemoveBlindLevel(idx)}
-                  >
-                    삭제
-                  </button>
+                    <button
+                      type="button"
+                      className="danger"
+                      disabled={state.blindLevels.length <= 1}
+                      onClick={() => onRemoveBlindLevel(idx)}
+                    >
+                      삭제
+                    </button>
+                  </div>
+                </div>
+
+                <div className="blind-level-grid">
+                  <label>
+                    SB
+                    <PlainNumberInput
+                      value={level.smallBlind}
+                      min={0}
+                      step={state.chipUnit}
+                      onChange={(v) => onUpdateBlindLevel(idx, "smallBlind", v)}
+                    />
+                  </label>
+
+                  <label>
+                    BB
+                    <PlainNumberInput
+                      value={level.bigBlind}
+                      min={0}
+                      step={state.chipUnit}
+                      onChange={(v) => onUpdateBlindLevel(idx, "bigBlind", v)}
+                    />
+                  </label>
+
+                  <label>
+                    Ante
+                    <PlainNumberInput
+                      value={level.ante}
+                      min={0}
+                      step={state.chipUnit}
+                      onChange={(v) => onUpdateBlindLevel(idx, "ante", v)}
+                    />
+                  </label>
                 </div>
               </div>
-
-              <div className="blind-level-grid">
-                <label>
-                  SB
-                  <PlainNumberInput
-                    value={level.smallBlind}
-                    min={0}
-                    step={50}
-                    onChange={(v) => onUpdateBlindLevel(idx, "smallBlind", v)}
-                  />
-                </label>
-
-                <label>
-                  BB
-                  <PlainNumberInput
-                    value={level.bigBlind}
-                    min={0}
-                    step={100}
-                    onChange={(v) => onUpdateBlindLevel(idx, "bigBlind", v)}
-                  />
-                </label>
-
-                <label>
-                  Ante
-                  <PlainNumberInput
-                    value={level.ante}
-                    min={0}
-                    step={100}
-                    onChange={(v) => onUpdateBlindLevel(idx, "ante", v)}
-                  />
-                </label>
-              </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
     </div>
   );
@@ -260,14 +370,18 @@ function SetupPanel({
   onUpdateBlindLevel,
   onAddBlindLevel,
   onRemoveBlindLevel,
+  onRunChipRace,
 }) {
   const updateSeatPlayer = (seatIndex, key, value) => {
     onChangeState({
       ...state,
       seats: state.seats.map((p, idx) => {
         if (idx !== seatIndex || !p) return p;
-        const next = { ...p, [key]: value };
-        if (key === "startStack") next.stack = value;
+
+        const nextValue = key === "startStack" ? floorToChipUnit(value, state.chipUnit) : value;
+        const next = { ...p, [key]: nextValue };
+
+        if (key === "startStack") next.stack = nextValue;
         return next;
       }),
     });
@@ -289,6 +403,7 @@ function SetupPanel({
               startStack: 5000,
               stack: 5000,
               totalInvested: 0,
+              anteInvested: 0,
               streetInvested: 0,
               folded: false,
               allIn: false,
@@ -325,9 +440,9 @@ function SetupPanel({
     <div className="panel">
       <h2>게임 설정</h2>
 
-      <div className="setup-grid">
-        <label>
-          시작 레벨
+      <div className="setup-grid setup-grid-top">
+        <label className="setup-field-card">
+          <span className="setup-field-label">시작 레벨</span>
           <select
             value={state.currentBlindLevelIndex}
             onChange={(e) => onSelectStartLevel(Number(e.target.value))}
@@ -340,13 +455,13 @@ function SetupPanel({
           </select>
         </label>
 
-        <label>
-          현재 블라인드
+        <label className="setup-field-card">
+          <span className="setup-field-label">현재 블라인드</span>
           <input value={levelSummary(currentLevel)} readOnly />
         </label>
 
-        <label>
-          Dealer Seat
+        <label className="setup-field-card">
+          <span className="setup-field-label">Dealer Seat</span>
           <select
             value={state.dealerSeatIndex}
             onChange={(e) => onChangeState({ ...state, dealerSeatIndex: Number(e.target.value) })}
@@ -358,10 +473,14 @@ function SetupPanel({
             ))}
           </select>
         </label>
+
+        <div className="setup-field-card setup-chip-race-inline">
+          <ChipRaceControl chipUnit={state.chipUnit} onRunChipRace={onRunChipRace} compact />
+        </div>
       </div>
 
       <div className="setup-main-grid">
-        <div className="setup-left-col">
+        <div className="setup-left-col setup-column-card-wrap">
           <BlindLevelsEditor
             state={state}
             onSelectStartLevel={onSelectStartLevel}
@@ -371,50 +490,58 @@ function SetupPanel({
           />
         </div>
 
-        <div className="setup-right-col">
-          <div className="players-block">
-            <div className="players-head">
-              <h3>고정 좌석 1~10</h3>
-            </div>
-
-            <div className="muted">
-              빈 자리는 유지됩니다. 원하는 좌석에 플레이어를 직접 앉힐 수 있습니다.
-            </div>
-
-            {state.seats.map((player, seatIndex) => (
-              <div className="player-row player-row-seat" key={seatIndex}>
-                <div className="seat-badge">{seatIndex + 1}</div>
-
-                {player ? (
-                  <>
-                    <input
-                      type="text"
-                      value={player.name}
-                      onChange={(e) => updateSeatPlayer(seatIndex, "name", e.target.value)}
-                    />
-                    <PlainNumberInput
-                      value={player.startStack}
-                      onChange={(v) => updateSeatPlayer(seatIndex, "startStack", v)}
-                      min={0}
-                      step={100}
-                    />
-                    <button onClick={() => toggleSetupSitOut(seatIndex)}>
-                      {player.sitOut ? "복귀" : "Sit out"}
-                    </button>
-                    <button className="danger" onClick={() => removeSeatPlayer(seatIndex)}>
-                      자리 비우기
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <div className="empty-seat-label">빈 자리</div>
-                    <div></div>
-                    <button onClick={() => addSeatPlayer(seatIndex)}>앉히기</button>
-                    <div></div>
-                  </>
-                )}
+        <div className="setup-right-col setup-column-card-wrap">
+          <div className="setup-section-card setup-seat-section-card">
+            <div className="setup-section-head">
+              <div className="setup-section-head-text">
+                <h3>고정 좌석 1~10</h3>
+                <div className="setup-section-subtext">
+                  빈 자리는 유지됩니다. 원하는 좌석에 플레이어를 직접 앉힐 수 있습니다.
+                </div>
               </div>
-            ))}
+            </div>
+
+            <div className="players-block players-block-tight players-scroll-area">
+              {state.seats.map((player, seatIndex) => (
+                <div className="player-row player-row-seat" key={seatIndex}>
+                  <div className="seat-badge">{seatIndex + 1}</div>
+
+                  {player ? (
+                    <>
+                      <input
+                        type="text"
+                        value={player.name}
+                        onChange={(e) => updateSeatPlayer(seatIndex, "name", e.target.value)}
+                      />
+                      <PlainNumberInput
+                        value={player.startStack}
+                        onChange={(v) => updateSeatPlayer(seatIndex, "startStack", v)}
+                        min={0}
+                        step={state.chipUnit}
+                      />
+                      <button className="seat-row-btn" onClick={() => toggleSetupSitOut(seatIndex)}>
+                        {player.sitOut ? "복귀" : "Sit out"}
+                      </button>
+                      <button
+                        className="danger seat-row-btn"
+                        onClick={() => removeSeatPlayer(seatIndex)}
+                      >
+                        자리 비우기
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <div className="empty-seat-label">빈 자리</div>
+                      <div></div>
+                      <button className="seat-row-btn" onClick={() => addSeatPlayer(seatIndex)}>
+                        앉히기
+                      </button>
+                      <div></div>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>
@@ -426,7 +553,7 @@ function SetupPanel({
   );
 }
 
-function BlindEditor({ state, onUpdateDealer, onChangeBlindLevel }) {
+function BlindEditor({ state, onChangeBlindLevel }) {
   const [open, setOpen] = useState(false);
 
   const currentLevel = state.blindLevels?.[state.currentBlindLevelIndex];
@@ -449,48 +576,45 @@ function BlindEditor({ state, onUpdateDealer, onChangeBlindLevel }) {
           </div>
           {pendingChanged ? (
             <div className="blind-editor-pending">
-              다음 핸드 예약: Lv {state.pendingBlindLevelIndex + 1} · {levelSummary(pendingLevel)}
+              예약: Lv {state.pendingBlindLevelIndex + 1}
             </div>
           ) : null}
         </div>
 
-        <span className={["blind-editor-chevron", open ? "open" : ""].join(" ")}>
-          ▾
-        </span>
+        <span className={["blind-editor-chevron", open ? "open" : ""].join(" ")}>▾</span>
       </button>
 
       {open && (
         <div className="blind-editor-body blind-editor-body-compact">
           <div className="blind-level-live-panel">
             <div className="blind-level-live-top">
-              <div className="blind-level-live-title">
-                현재 레벨: Lv {state.currentBlindLevelIndex + 1}
-              </div>
+              <div className="blind-level-live-title">현재 Lv {state.currentBlindLevelIndex + 1}</div>
               <div className="blind-level-live-value">{levelSummary(currentLevel)}</div>
             </div>
 
             <div className="blind-level-live-actions">
-              <button type="button" disabled={!canLevelDown} onClick={() => onChangeBlindLevel(-1)}>
+              <button
+                type="button"
+                disabled={!canLevelDown}
+                onClick={() => onChangeBlindLevel(-1)}
+              >
                 Level -
               </button>
-              <button type="button" disabled={!canLevelUp} onClick={() => onChangeBlindLevel(1)}>
+
+              <button
+                type="button"
+                disabled={!canLevelUp}
+                onClick={() => onChangeBlindLevel(1)}
+              >
                 Level +
               </button>
             </div>
 
-            <label>
-              Dealer
-              <select
-                value={state.dealerSeatIndex}
-                onChange={(e) => onUpdateDealer(Number(e.target.value))}
-              >
-                {Array.from({ length: MAX_SEATS }).map((_, idx) => (
-                  <option key={idx} value={idx}>
-                    Seat {idx + 1}
-                  </option>
-                ))}
-              </select>
-            </label>
+            {pendingChanged ? (
+              <div className="blind-editor-next-info">
+                다음 핸드 적용: {levelSummary(pendingLevel)}
+              </div>
+            ) : null}
           </div>
         </div>
       )}
@@ -498,8 +622,40 @@ function BlindEditor({ state, onUpdateDealer, onChangeBlindLevel }) {
   );
 }
 
+function TableUtilityPanel({ state, onUpdateDealer, onRunChipRace }) {
+  return (
+    <div className="panel table-utility-panel">
+      <div className="table-utility-grid">
+        <label className="table-utility-field">
+          <span className="table-utility-label">Dealer</span>
+          <select
+            value={state.dealerSeatIndex}
+            onChange={(e) => onUpdateDealer(Number(e.target.value))}
+          >
+            {Array.from({ length: MAX_SEATS }).map((_, idx) => (
+              <option key={idx} value={idx}>
+                Seat {idx + 1}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <div className="table-utility-field">
+          <ChipRaceControl
+            chipUnit={state.chipUnit}
+            onRunChipRace={onRunChipRace}
+            disabled={state.street !== "finished"}
+            compact
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ShowdownPanel({ state, onSettle }) {
   const [winnersByPot, setWinnersByPot] = useState({});
+  const [currentPotIndex, setCurrentPotIndex] = useState(0);
 
   useEffect(() => {
     const init = {};
@@ -507,54 +663,82 @@ function ShowdownPanel({ state, onSettle }) {
       init[idx] = [];
     });
     setWinnersByPot(init);
+    setCurrentPotIndex(0);
   }, [state.confirmedPots]);
 
-  const toggleWinner = (potIndex, seatIndex) => {
+  const pots = state.confirmedPots || [];
+  const currentPot = pots[currentPotIndex];
+
+  const toggleWinner = (seatIndex) => {
     setWinnersByPot((prev) => {
-      const exists = prev[potIndex]?.includes(seatIndex);
+      const exists = prev[currentPotIndex]?.includes(seatIndex);
 
       return {
         ...prev,
-        [potIndex]: exists
-          ? prev[potIndex].filter((id) => id !== seatIndex)
-          : [...(prev[potIndex] || []), seatIndex],
+        [currentPotIndex]: exists
+          ? prev[currentPotIndex].filter((id) => id !== seatIndex)
+          : [...(prev[currentPotIndex] || []), seatIndex],
       };
     });
   };
 
+  const handleNext = () => {
+    if (currentPotIndex < pots.length - 1) {
+      setCurrentPotIndex((prev) => prev + 1);
+      return;
+    }
+
+    onSettle(winnersByPot);
+  };
+
+  if (!pots.length) {
+    return (
+      <div className="panel">
+        <h2>쇼다운 분배</h2>
+        <div className="muted">분배할 팟이 없습니다.</div>
+      </div>
+    );
+  }
+
   return (
     <div className="panel">
       <h2>쇼다운 분배</h2>
-      {state.confirmedPots.length === 0 && <div className="muted">분배할 팟이 없습니다.</div>}
 
-      {state.confirmedPots.map((pot, idx) => (
-        <div className="showdown-pot" key={idx}>
-          <div className="showdown-title">
-            {idx === 0 ? "Pot" : `Side Pot ${idx}`} - {pot.amount}
-          </div>
+      <div className="showdown-progress">
+        {currentPotIndex + 1} / {pots.length}
+      </div>
 
-          <div className="winner-list">
-            {pot.eligibleSeatIndices.map((seatIndex) => {
-              const player = state.seats[seatIndex];
-              const checked = winnersByPot[idx]?.includes(seatIndex);
-
-              return (
-                <label key={seatIndex} className="winner-item">
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={() => toggleWinner(idx, seatIndex)}
-                  />
-                  {seatIndex + 1}. {player?.name}
-                </label>
-              );
-            })}
-          </div>
+      <div className="showdown-pot">
+        <div className="showdown-title">
+          {currentPotIndex === 0 ? "Main Pot" : `Side Pot ${currentPotIndex}`} -{" "}
+          {formatPot(currentPot.amount)}
         </div>
-      ))}
 
-      <button className="primary big-btn" onClick={() => onSettle(winnersByPot)}>
-        선택한 승자로 분배
+        <div className="winner-list winner-list-buttons">
+          {currentPot.eligibleSeatIndices.map((seatIndex) => {
+            const player = state.seats[seatIndex];
+            const checked = winnersByPot[currentPotIndex]?.includes(seatIndex);
+
+            return (
+              <button
+                key={seatIndex}
+                type="button"
+                className={[
+                  "winner-select-btn",
+                  checked ? "winner-select-btn-active" : "",
+                ].join(" ")}
+                onClick={() => toggleWinner(seatIndex)}
+              >
+                <span className="winner-select-seat">{seatIndex + 1}</span>
+                <span className="winner-select-name">{player?.name}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <button className="primary big-btn" onClick={handleNext}>
+        {currentPotIndex < pots.length - 1 ? "다음 팟" : "선택한 승자로 분배"}
       </button>
     </div>
   );
@@ -616,7 +800,7 @@ function SeatHudCard({ player, seatIndex, isCurrent, positionLabel = "" }) {
               ) : null}
             </div>
 
-            <div className="table-seat-stack">{player.stack}</div>
+            <div className="table-seat-stack">{formatPot(player.stack)}</div>
           </div>
 
           <div className="table-seat-subline">
@@ -647,7 +831,7 @@ function SeatHudCard({ player, seatIndex, isCurrent, positionLabel = "" }) {
               {actionLabel}
             </span>
             {actionLabel !== "CHECK" && currentBetAmount > 0 && (
-              <span className="table-seat-action-value">{currentBetAmount}</span>
+              <span className="table-seat-action-value">{formatPot(currentBetAmount)}</span>
             )}
           </>
         ) : isCurrent ? (
@@ -663,9 +847,8 @@ function SeatHudCard({ player, seatIndex, isCurrent, positionLabel = "" }) {
 function OvalTableLayout({ state, positionLabels, selectedSeatIndex, onSelectSeat }) {
   const potItems = getDisplayPotItems(state);
   const currentStreet = streetLabel(state.street).toUpperCase();
-  const blindText = `${state.smallBlind || 0} / ${state.bigBlind || 0} / ${state.ante || 0}`;
-  const blindLevel = `LEVEL ${Number(state.currentBlindLevelIndex || 0) + 1}`;
-  const blindLevelText = `LV ${Number(state.currentBlindLevelIndex || 0) + 1}`;
+  const blindText = `${formatBlind(state.smallBlind)} / ${formatBlind(state.bigBlind)} / ${formatBlind(state.ante)}`;
+  const blindLevel = `LEVEL ${state.currentBlindLevelIndex + 1}`;
 
   return (
     <div className="table-stage">
@@ -673,7 +856,6 @@ function OvalTableLayout({ state, positionLabels, selectedSeatIndex, onSelectSea
         <div className="poker-table-oval">
           <div className="table-center-hud">
             <div className="table-center-street">{currentStreet}</div>
-            <div className="table-center-level">{blindLevelText}</div>
 
             <div className="table-center-pots">
               {potItems.map((item, idx) => (
@@ -685,15 +867,15 @@ function OvalTableLayout({ state, positionLabels, selectedSeatIndex, onSelectSea
                   ].join(" ")}
                 >
                   <span className="table-center-pot-label">{item.label}</span>
-                  <span className="table-center-pot-value">{item.amount}</span>
+                  <span className="table-center-pot-value">{formatPot(item.amount)}</span>
                 </div>
               ))}
             </div>
 
             <div className="table-center-blinds">
-  <span className="table-center-level">{blindLevel}</span>
-  <span className="table-center-blind-values">{blindText}</span>
-</div>
+              <span className="table-center-level">{blindLevel}</span>
+              <span className="table-center-blind-values">{blindText}</span>
+            </div>
           </div>
 
           {Array.from({ length: MAX_SEATS }).map((_, seatIndex) => (
@@ -744,11 +926,11 @@ function CurrentPlayerActionPanel({ state, onPlayerAction }) {
 
   useEffect(() => {
     if (!currentPlayer) return;
-    setAmount(state.currentBet === 0 ? state.bigBlind : minRaiseTo);
-  }, [state.currentSeatIndex, state.currentBet, state.bigBlind, minRaiseTo, currentPlayer]);
+    setAmount(floorToChipUnit(state.currentBet === 0 ? state.bigBlind : minRaiseTo, state.chipUnit));
+  }, [state.currentSeatIndex, state.currentBet, state.bigBlind, minRaiseTo, currentPlayer, state.chipUnit]);
 
   const applyAmount = (next) => {
-    const safe = Math.max(0, Number.isFinite(next) ? next : 0);
+    const safe = Math.max(0, floorToChipUnit(Number.isFinite(next) ? next : 0, state.chipUnit));
     setAmount(safe);
   };
 
@@ -756,7 +938,7 @@ function CurrentPlayerActionPanel({ state, onPlayerAction }) {
     return (
       <div className="panel action-panel-compact action-panel-empty">
         <div className="action-panel-compact-head">
-          <div className="action-panel-compact-title">현재 액션</div>
+          <div className="action-panel-compact-title">현재 액션 없음</div>
           <div className="muted">진행 중인 액션이 없습니다.</div>
         </div>
       </div>
@@ -782,52 +964,48 @@ function CurrentPlayerActionPanel({ state, onPlayerAction }) {
     <div className="panel action-panel-compact">
       <div className="action-panel-compact-top">
         <div className="action-panel-compact-head">
-          <div className="action-panel-compact-title">현재 액션</div>
-          <div className="action-panel-compact-player">
+          <div className="action-panel-compact-title">
             Seat {state.currentSeatIndex + 1} · {currentPlayer.name}
           </div>
-        </div>
-
-        <div className="action-panel-compact-meta">
-          <span>Call {callAmount}</span>
-          <span>Min {minRaiseTo}</span>
-          <span>Stack {currentPlayer.stack}</span>
         </div>
       </div>
 
       <div className="action-panel-compact-bottom">
-        <label className="action-panel-compact-amount">
-          <span>Amount</span>
-
+        <div className="action-panel-compact-amount">
           <div className="amount-control">
             <div className="amount-control-main">
-              <button type="button" onClick={() => applyAmount(amount - 100)}>
-                -100
+              <button type="button" onClick={() => applyAmount(amount - state.chipUnit)}>
+                -{formatPot(state.chipUnit)}
               </button>
 
               <input
                 type="number"
                 min="0"
-                step="100"
+                step={state.chipUnit}
                 value={amount}
                 onChange={(e) => applyAmount(Number(e.target.value))}
               />
 
-              <button type="button" onClick={() => applyAmount(amount + 100)}>
-                +100
+              <button type="button" onClick={() => applyAmount(amount + state.chipUnit)}>
+                +{formatPot(state.chipUnit)}
               </button>
             </div>
 
-            <div className="amount-quick-buttons">
-              <button type="button" onClick={() => applyAmount(amount + 1000)}>
-                +1000
-              </button>
-              <button type="button" onClick={() => applyAmount(amount + 5000)}>
-                +5000
-              </button>
-            </div>
+<div className="amount-quick-buttons">
+  <button type="button" onClick={() => applyAmount(amount - state.chipUnit * 5)}>
+    -{formatPot(state.chipUnit * 5)}
+  </button>
+
+  <button type="button" onClick={() => applyAmount(amount + state.chipUnit * 10)}>
+    +{formatPot(state.chipUnit * 10)}
+  </button>
+
+  <button type="button" onClick={() => applyAmount(amount + state.chipUnit * 5)}>
+    +{formatPot(state.chipUnit * 5)}
+  </button>
+</div>
           </div>
-        </label>
+        </div>
 
         <div className="action-panel-compact-buttons">
           <button onClick={() => onPlayerAction("fold")}>Fold</button>
@@ -890,7 +1068,7 @@ function SeatDetailPanel({
   };
 
   const handleStackApply = () => {
-    const safeStack = Math.max(0, Number.isFinite(newStack) ? newStack : 0);
+    const safeStack = floorToChipUnit(newStack, state.chipUnit);
 
     onDirectStateChange((prev) => ({
       ...prev,
@@ -919,7 +1097,7 @@ function SeatDetailPanel({
   const handleAdd = () => {
     onAddPlayerToSeat(selectedSeatIndex, {
       name: newName.trim() || "",
-      stack: newStack,
+      stack: floorToChipUnit(newStack, state.chipUnit),
     });
   };
 
@@ -947,7 +1125,7 @@ function SeatDetailPanel({
             </div>
             <div className="seat-detail-status-row">
               <span className="seat-detail-k">현재 스택</span>
-              <span className="seat-detail-v">{player.stack}</span>
+              <span className="seat-detail-v">{formatPot(player.stack)}</span>
             </div>
             <div className="seat-detail-status-row">
               <span className="seat-detail-k">상태</span>
@@ -978,7 +1156,7 @@ function SeatDetailPanel({
               <input
                 type="number"
                 min="0"
-                step="1"
+                step={state.chipUnit}
                 value={newStack}
                 onChange={(e) => setNewStack(Number(e.target.value))}
               />
@@ -1017,7 +1195,7 @@ function SeatDetailPanel({
               <input
                 type="number"
                 min="0"
-                step="100"
+                step={state.chipUnit}
                 value={newStack}
                 onChange={(e) => setNewStack(Number(e.target.value))}
               />
@@ -1039,6 +1217,10 @@ export default function App() {
   const [state, setState] = useState(createInitialSetup());
   const [selectedSeatIndex, setSelectedSeatIndex] = useState(-1);
 
+  const handleToggleSeatDetail = (seatIndex) => {
+    setSelectedSeatIndex((prev) => (prev === seatIndex ? -1 : seatIndex));
+  };
+
   const positionLabels = useMemo(() => getPositionLabels(state), [state]);
 
   const handleStart = () => setState((prev) => startHand(prev, false));
@@ -1048,11 +1230,13 @@ export default function App() {
   const handleSettle = (winnersByPot) =>
     setState((prev) => settleShowdown(prev, winnersByPot));
   const handleUndo = () => setState((prev) => undoAction(prev));
+  const handleRunChipRace = (nextChipUnit) =>
+    setState((prev) => runChipRace(prev, nextChipUnit));
 
   const handleSelectStartLevel = (targetIndex) => {
     setState((prev) => {
-      const blindLevels = normalizeBlindLevelsForApp(prev.blindLevels);
-      const nextIndex = clampLevelIndex(blindLevels, targetIndex);
+      const blindLevels = normalizeBlindLevelsForApp(prev.blindLevels, prev.chipUnit);
+      const nextIndex = clampLevelIndex(blindLevels, targetIndex, prev.chipUnit);
       const level = blindLevels[nextIndex];
 
       return {
@@ -1069,17 +1253,25 @@ export default function App() {
 
   const handleUpdateBlindLevel = (levelIndex, key, rawValue) => {
     setState((prev) => {
-      const blindLevels = normalizeBlindLevelsForApp(prev.blindLevels).map((level, idx) =>
+      const blindLevels = normalizeBlindLevelsForApp(prev.blindLevels, prev.chipUnit).map((level, idx) =>
         idx === levelIndex
           ? {
               ...level,
-              [key]: Math.max(0, Number.isFinite(Number(rawValue)) ? Number(rawValue) : 0),
+              [key]: Math.max(0, floorToChipUnit(rawValue, prev.chipUnit)),
             }
           : level
       );
 
-      const currentBlindLevelIndex = clampLevelIndex(blindLevels, prev.currentBlindLevelIndex);
-      const pendingBlindLevelIndex = clampLevelIndex(blindLevels, prev.pendingBlindLevelIndex);
+      const currentBlindLevelIndex = clampLevelIndex(
+        blindLevels,
+        prev.currentBlindLevelIndex,
+        prev.chipUnit
+      );
+      const pendingBlindLevelIndex = clampLevelIndex(
+        blindLevels,
+        prev.pendingBlindLevelIndex,
+        prev.chipUnit
+      );
       const currentLevel = blindLevels[currentBlindLevelIndex];
 
       return {
@@ -1096,18 +1288,27 @@ export default function App() {
 
   const handleAddBlindLevel = () => {
     setState((prev) => {
-      const blindLevels = normalizeBlindLevelsForApp(prev.blindLevels);
+      const blindLevels = normalizeBlindLevelsForApp(prev.blindLevels, prev.chipUnit);
       const last = blindLevels[blindLevels.length - 1] || {
-        smallBlind: 50,
-        bigBlind: 100,
-        ante: 100,
+        smallBlind: prev.chipUnit,
+        bigBlind: prev.chipUnit * 2,
+        ante: prev.chipUnit * 2,
       };
 
       const nextLevel = {
         level: blindLevels.length + 1,
-        smallBlind: last.smallBlind > 0 ? last.smallBlind * 2 : 50,
-        bigBlind: last.bigBlind > 0 ? last.bigBlind * 2 : 100,
-        ante: last.ante > 0 ? last.ante * 2 : 100,
+        smallBlind: floorToChipUnit(
+          last.smallBlind > 0 ? last.smallBlind * 2 : prev.chipUnit,
+          prev.chipUnit
+        ),
+        bigBlind: floorToChipUnit(
+          last.bigBlind > 0 ? last.bigBlind * 2 : prev.chipUnit * 2,
+          prev.chipUnit
+        ),
+        ante: floorToChipUnit(
+          last.ante > 0 ? last.ante * 2 : prev.chipUnit * 2,
+          prev.chipUnit
+        ),
       };
 
       return {
@@ -1119,7 +1320,7 @@ export default function App() {
 
   const handleRemoveBlindLevel = (levelIndex) => {
     setState((prev) => {
-      const currentLevels = normalizeBlindLevelsForApp(prev.blindLevels);
+      const currentLevels = normalizeBlindLevelsForApp(prev.blindLevels, prev.chipUnit);
       if (currentLevels.length <= 1) return prev;
 
       const blindLevels = currentLevels
@@ -1130,14 +1331,16 @@ export default function App() {
         blindLevels,
         prev.currentBlindLevelIndex > levelIndex
           ? prev.currentBlindLevelIndex - 1
-          : prev.currentBlindLevelIndex
+          : prev.currentBlindLevelIndex,
+        prev.chipUnit
       );
 
       const pendingBlindLevelIndex = clampLevelIndex(
         blindLevels,
         prev.pendingBlindLevelIndex > levelIndex
           ? prev.pendingBlindLevelIndex - 1
-          : prev.pendingBlindLevelIndex
+          : prev.pendingBlindLevelIndex,
+        prev.chipUnit
       );
 
       const currentLevel = blindLevels[currentBlindLevelIndex];
@@ -1159,13 +1362,13 @@ export default function App() {
 
   const handleChangeBlindLevel = (delta) => {
     setState((prev) => {
-      const blindLevels = normalizeBlindLevelsForApp(prev.blindLevels);
+      const blindLevels = normalizeBlindLevelsForApp(prev.blindLevels, prev.chipUnit);
       const baseIndex =
         prev.street === "finished"
           ? prev.currentBlindLevelIndex
           : prev.pendingBlindLevelIndex ?? prev.currentBlindLevelIndex;
 
-      const nextIndex = clampLevelIndex(blindLevels, baseIndex + delta);
+      const nextIndex = clampLevelIndex(blindLevels, baseIndex + delta, prev.chipUnit);
       const nextLevel = blindLevels[nextIndex];
 
       if (prev.street === "finished") {
@@ -1234,28 +1437,62 @@ export default function App() {
           onUpdateBlindLevel={handleUpdateBlindLevel}
           onAddBlindLevel={handleAddBlindLevel}
           onRemoveBlindLevel={handleRemoveBlindLevel}
+          onRunChipRace={handleRunChipRace}
         />
       ) : (
-        <>
-          <div className="table-and-side-grid">
-            <div className="table-main-col">
-              <OvalTableLayout
+        <div
+          className={[
+            "table-and-side-grid",
+            selectedSeatIndex >= 0 ? "table-and-side-grid-with-side" : "table-and-side-grid-full",
+          ].join(" ")}
+        >
+          <div className="table-main-col">
+            <OvalTableLayout
+              state={state}
+              positionLabels={positionLabels}
+              selectedSeatIndex={selectedSeatIndex}
+              onSelectSeat={handleToggleSeatDetail}
+            />
+
+            <div
+              className={[
+                "bottom-control-row",
+                state.street === "showdown" || state.street === "finished"
+                  ? "bottom-control-row-with-showdown"
+                  : "",
+              ].join(" ")}
+            >
+              <CurrentPlayerActionPanel state={state} onPlayerAction={handleAction} />
+
+              <BlindEditor state={state} onChangeBlindLevel={handleChangeBlindLevel} />
+
+              <TableUtilityPanel
                 state={state}
-                positionLabels={positionLabels}
-                selectedSeatIndex={selectedSeatIndex}
-                onSelectSeat={setSelectedSeatIndex}
+                onUpdateDealer={handleUpdateDealer}
+                onRunChipRace={handleRunChipRace}
               />
 
-              <div className="bottom-control-row">
-                <CurrentPlayerActionPanel state={state} onPlayerAction={handleAction} />
-                <BlindEditor
-                  state={state}
-                  onUpdateDealer={handleUpdateDealer}
-                  onChangeBlindLevel={handleChangeBlindLevel}
-                />
-              </div>
-            </div>
+              {state.street === "showdown" && (
+                <div className="showdown-inline-panel">
+                  <ShowdownPanel state={state} onSettle={handleSettle} />
+                </div>
+              )}
 
+              {state.street === "finished" && (
+                <div className="showdown-inline-panel">
+                  <div className="panel hand-finished-panel">
+                    <h2>핸드 종료</h2>
+                    <div className="muted">다음 핸드를 시작하거나 칩레이스를 적용할 수 있습니다.</div>
+                    <button className="primary big-btn" onClick={handleNextHand}>
+                      다음 핸드 시작
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {selectedSeatIndex >= 0 && (
             <div className="table-side-col">
               <SeatDetailPanel
                 state={state}
@@ -1267,26 +1504,8 @@ export default function App() {
                 onLeaveSeat={handleLeaveSeat}
               />
             </div>
-          </div>
-
-          {state.street === "showdown" && (
-            <div className="showdown-floating">
-              <ShowdownPanel state={state} onSettle={handleSettle} />
-            </div>
           )}
-
-          {state.street === "finished" && (
-            <div className="showdown-floating">
-              <div className="panel">
-                <h2>핸드 종료</h2>
-                <div className="muted">다음 핸드를 시작할 수 있습니다.</div>
-                <button className="primary" onClick={handleNextHand}>
-                  다음 핸드 시작
-                </button>
-              </div>
-            </div>
-          )}
-        </>
+        </div>
       )}
     </div>
   );
