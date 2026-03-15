@@ -28,9 +28,10 @@ function PlainNumberInput({ value, onChange, min = 0, step = 1 }) {
 }
 
 function normalizeBlindLevelsForApp(levels) {
-  const source = Array.isArray(levels) && levels.length
-    ? levels
-    : [{ level: 1, smallBlind: 50, bigBlind: 100, ante: 100 }];
+  const source =
+    Array.isArray(levels) && levels.length
+      ? levels
+      : [{ level: 1, smallBlind: 50, bigBlind: 100, ante: 100 }];
 
   return source.map((item, idx) => ({
     level: idx + 1,
@@ -171,15 +172,16 @@ function BlindLevelsEditor({
   return (
     <div className="blind-levels-panel">
       <div className="blind-levels-head">
-        <h3>블라인드 레벨 설정</h3>
+        <h3>블라인드 레벨</h3>
         <button type="button" onClick={onAddBlindLevel}>
-          레벨 추가
+          + 레벨
         </button>
       </div>
 
       <div className="blind-levels-list">
         {state.blindLevels.map((level, idx) => {
           const isSelected = idx === state.currentBlindLevelIndex;
+
           return (
             <div
               key={idx}
@@ -190,14 +192,16 @@ function BlindLevelsEditor({
             >
               <div className="blind-level-row-top">
                 <div className="blind-level-badge">Lv {idx + 1}</div>
+
                 <div className="blind-level-row-actions">
                   <button
                     type="button"
                     className={isSelected ? "primary" : ""}
                     onClick={() => onSelectStartLevel(idx)}
                   >
-                    {isSelected ? "시작 레벨" : "이 레벨로 시작"}
+                    {isSelected ? "선택됨" : "선택"}
                   </button>
+
                   <button
                     type="button"
                     className="danger"
@@ -356,57 +360,63 @@ function SetupPanel({
         </label>
       </div>
 
-      <BlindLevelsEditor
-        state={state}
-        onSelectStartLevel={onSelectStartLevel}
-        onUpdateBlindLevel={onUpdateBlindLevel}
-        onAddBlindLevel={onAddBlindLevel}
-        onRemoveBlindLevel={onRemoveBlindLevel}
-      />
-
-      <div className="players-block">
-        <div className="players-head">
-          <h3>고정 좌석 1~10</h3>
+      <div className="setup-main-grid">
+        <div className="setup-left-col">
+          <BlindLevelsEditor
+            state={state}
+            onSelectStartLevel={onSelectStartLevel}
+            onUpdateBlindLevel={onUpdateBlindLevel}
+            onAddBlindLevel={onAddBlindLevel}
+            onRemoveBlindLevel={onRemoveBlindLevel}
+          />
         </div>
 
-        <div className="muted">
-          빈 자리는 유지됩니다. 원하는 좌석에 플레이어를 직접 앉힐 수 있습니다.
-        </div>
+        <div className="setup-right-col">
+          <div className="players-block">
+            <div className="players-head">
+              <h3>고정 좌석 1~10</h3>
+            </div>
 
-        {state.seats.map((player, seatIndex) => (
-          <div className="player-row player-row-seat" key={seatIndex}>
-            <div className="seat-badge">{seatIndex + 1}</div>
+            <div className="muted">
+              빈 자리는 유지됩니다. 원하는 좌석에 플레이어를 직접 앉힐 수 있습니다.
+            </div>
 
-            {player ? (
-              <>
-                <input
-                  type="text"
-                  value={player.name}
-                  onChange={(e) => updateSeatPlayer(seatIndex, "name", e.target.value)}
-                />
-                <PlainNumberInput
-                  value={player.startStack}
-                  onChange={(v) => updateSeatPlayer(seatIndex, "startStack", v)}
-                  min={0}
-                  step={100}
-                />
-                <button onClick={() => toggleSetupSitOut(seatIndex)}>
-                  {player.sitOut ? "복귀" : "Sit out"}
-                </button>
-                <button className="danger" onClick={() => removeSeatPlayer(seatIndex)}>
-                  자리 비우기
-                </button>
-              </>
-            ) : (
-              <>
-                <div className="empty-seat-label">빈 자리</div>
-                <div></div>
-                <button onClick={() => addSeatPlayer(seatIndex)}>앉히기</button>
-                <div></div>
-              </>
-            )}
+            {state.seats.map((player, seatIndex) => (
+              <div className="player-row player-row-seat" key={seatIndex}>
+                <div className="seat-badge">{seatIndex + 1}</div>
+
+                {player ? (
+                  <>
+                    <input
+                      type="text"
+                      value={player.name}
+                      onChange={(e) => updateSeatPlayer(seatIndex, "name", e.target.value)}
+                    />
+                    <PlainNumberInput
+                      value={player.startStack}
+                      onChange={(v) => updateSeatPlayer(seatIndex, "startStack", v)}
+                      min={0}
+                      step={100}
+                    />
+                    <button onClick={() => toggleSetupSitOut(seatIndex)}>
+                      {player.sitOut ? "복귀" : "Sit out"}
+                    </button>
+                    <button className="danger" onClick={() => removeSeatPlayer(seatIndex)}>
+                      자리 비우기
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <div className="empty-seat-label">빈 자리</div>
+                    <div></div>
+                    <button onClick={() => addSeatPlayer(seatIndex)}>앉히기</button>
+                    <div></div>
+                  </>
+                )}
+              </div>
+            ))}
           </div>
-        ))}
+        </div>
       </div>
 
       <button className="primary big-btn" onClick={onStart}>
