@@ -82,7 +82,7 @@ button.danger {
 
 .setup-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(120px, 1fr));
+  grid-template-columns: repeat(3, minmax(140px, 1fr));
   gap: 10px;
   margin-bottom: 14px;
 }
@@ -154,6 +154,74 @@ select {
 
 .muted {
   color: #94a3b8;
+}
+
+.blind-levels-panel {
+  margin: 14px 0 10px;
+}
+
+.blind-levels-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.blind-levels-list {
+  display: grid;
+  gap: 10px;
+}
+
+.blind-level-row {
+  padding: 12px;
+  border-radius: 14px;
+  background: #0f172a;
+  border: 1px solid #334155;
+}
+
+.blind-level-row-selected {
+  border-color: rgba(96, 165, 250, 0.9);
+  box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.12);
+}
+
+.blind-level-row-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.blind-level-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 62px;
+  height: 32px;
+  border-radius: 999px;
+  background: #1e293b;
+  color: #f8fafc;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.blind-level-row-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.blind-level-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.blind-level-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .table-and-side-grid {
@@ -468,21 +536,11 @@ select {
   line-height: 1;
 }
 
-.table-dealer-chip {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 17px;
-  height: 17px;
-  padding: 0 4px;
-  border-radius: 999px;
-  background: #f59e0b;
+.table-position-btn {
+  background: #fbbf24;
   color: #111827;
-  border: 1px solid rgba(0, 0, 0, 0.24);
-  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.24);
-  font-size: 9px;
+  border: 1px solid rgba(0, 0, 0, 0.35);
   font-weight: 900;
-  line-height: 1;
 }
 
 .table-seat-stack {
@@ -794,6 +852,13 @@ select {
   color: #94a3b8;
 }
 
+.blind-editor-pending {
+  margin-top: 4px;
+  font-size: 11px;
+  color: #fbbf24;
+  font-weight: 700;
+}
+
 .blind-editor-chevron {
   flex-shrink: 0;
   font-size: 18px;
@@ -814,22 +879,31 @@ select {
   padding: 0 12px 12px;
 }
 
-.blind-editor-grid-compact {
+.blind-level-live-panel {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+  gap: 10px;
 }
 
-.blind-editor-grid-compact label {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
+.blind-level-live-top {
+  display: grid;
+  gap: 4px;
+}
+
+.blind-level-live-title {
+  font-size: 13px;
+  font-weight: 800;
+  color: #f8fafc;
+}
+
+.blind-level-live-value {
   font-size: 12px;
+  color: #94a3b8;
 }
 
-.blind-editor-grid-compact input,
-.blind-editor-grid-compact select {
-  padding: 10px 10px;
+.blind-level-live-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
 }
 
 .showdown-floating {
@@ -951,6 +1025,10 @@ select {
     grid-template-columns: repeat(2, minmax(120px, 1fr));
   }
 
+  .blind-level-grid {
+    grid-template-columns: 1fr;
+  }
+
   .player-row-seat {
     grid-template-columns: 56px 1fr;
   }
@@ -1002,6 +1080,23 @@ select {
   }
 
   .topbar-right button {
+    flex: 1;
+  }
+
+  .setup-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .blind-level-row-top {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .blind-level-row-actions {
+    width: 100%;
+  }
+
+  .blind-level-row-actions button {
     flex: 1;
   }
 }

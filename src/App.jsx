@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   MAX_SEATS,
   addPlayerToSeat,
@@ -25,6 +25,30 @@ function PlainNumberInput({ value, onChange, min = 0, step = 1 }) {
       onChange={(e) => onChange(Number(e.target.value))}
     />
   );
+}
+
+function normalizeBlindLevelsForApp(levels) {
+  const source = Array.isArray(levels) && levels.length
+    ? levels
+    : [{ level: 1, smallBlind: 50, bigBlind: 100, ante: 100 }];
+
+  return source.map((item, idx) => ({
+    level: idx + 1,
+    smallBlind: Number.isFinite(Number(item?.smallBlind)) ? Number(item.smallBlind) : 0,
+    bigBlind: Number.isFinite(Number(item?.bigBlind)) ? Number(item.bigBlind) : 0,
+    ante: Number.isFinite(Number(item?.ante)) ? Number(item.ante) : 0,
+  }));
+}
+
+function clampLevelIndex(levels, index) {
+  const normalized = normalizeBlindLevelsForApp(levels);
+  if (!normalized.length) return 0;
+  return Math.max(0, Math.min(Number(index) || 0, normalized.length - 1));
+}
+
+function levelSummary(level) {
+  if (!level) return "-";
+  return `${level.smallBlind} / ${level.bigBlind} / ${level.ante}`;
 }
 
 function getDisplayPotItems(state) {
@@ -99,6 +123,7 @@ function getPositionLabels(state) {
 
   if (count === 2) {
     let otherSeat = -1;
+
     for (let i = 1; i <= MAX_SEATS; i++) {
       const idx = (dealerSeat + i) % MAX_SEATS;
       if (handSeatSet.has(idx)) {
@@ -107,8 +132,12 @@ function getPositionLabels(state) {
       }
     }
 
-    labels[dealerSeat] = "BTN";
-    if (otherSeat >= 0) labels[otherSeat] = "BB";
+    labels[dealerSeat] = "D/SB";
+
+    if (otherSeat >= 0) {
+      labels[otherSeat] = "BB";
+    }
+
     return labels;
   }
 
@@ -132,7 +161,102 @@ function getPositionLabels(state) {
   return labels;
 }
 
-function SetupPanel({ state, onChangeState, onStart }) {
+function BlindLevelsEditor({
+  state,
+  onSelectStartLevel,
+  onUpdateBlindLevel,
+  onAddBlindLevel,
+  onRemoveBlindLevel,
+}) {
+  return (
+    <div className="blind-levels-panel">
+      <div className="blind-levels-head">
+        <h3>블라인드 레벨 설정</h3>
+        <button type="button" onClick={onAddBlindLevel}>
+          레벨 추가
+        </button>
+      </div>
+
+      <div className="blind-levels-list">
+        {state.blindLevels.map((level, idx) => {
+          const isSelected = idx === state.currentBlindLevelIndex;
+          return (
+            <div
+              key={idx}
+              className={[
+                "blind-level-row",
+                isSelected ? "blind-level-row-selected" : "",
+              ].join(" ")}
+            >
+              <div className="blind-level-row-top">
+                <div className="blind-level-badge">Lv {idx + 1}</div>
+                <div className="blind-level-row-actions">
+                  <button
+                    type="button"
+                    className={isSelected ? "primary" : ""}
+                    onClick={() => onSelectStartLevel(idx)}
+                  >
+                    {isSelected ? "시작 레벨" : "이 레벨로 시작"}
+                  </button>
+                  <button
+                    type="button"
+                    className="danger"
+                    disabled={state.blindLevels.length <= 1}
+                    onClick={() => onRemoveBlindLevel(idx)}
+                  >
+                    삭제
+                  </button>
+                </div>
+              </div>
+
+              <div className="blind-level-grid">
+                <label>
+                  SB
+                  <PlainNumberInput
+                    value={level.smallBlind}
+                    min={0}
+                    step={50}
+                    onChange={(v) => onUpdateBlindLevel(idx, "smallBlind", v)}
+                  />
+                </label>
+
+                <label>
+                  BB
+                  <PlainNumberInput
+                    value={level.bigBlind}
+                    min={0}
+                    step={100}
+                    onChange={(v) => onUpdateBlindLevel(idx, "bigBlind", v)}
+                  />
+                </label>
+
+                <label>
+                  Ante
+                  <PlainNumberInput
+                    value={level.ante}
+                    min={0}
+                    step={100}
+                    onChange={(v) => onUpdateBlindLevel(idx, "ante", v)}
+                  />
+                </label>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function SetupPanel({
+  state,
+  onChangeState,
+  onStart,
+  onSelectStartLevel,
+  onUpdateBlindLevel,
+  onAddBlindLevel,
+  onRemoveBlindLevel,
+}) {
   const updateSeatPlayer = (seatIndex, key, value) => {
     onChangeState({
       ...state,
@@ -191,33 +315,30 @@ function SetupPanel({ state, onChangeState, onStart }) {
     });
   };
 
+  const currentLevel = state.blindLevels?.[state.currentBlindLevelIndex];
+
   return (
     <div className="panel">
       <h2>게임 설정</h2>
 
       <div className="setup-grid">
         <label>
-          SB
-          <PlainNumberInput
-            value={state.smallBlind}
-            onChange={(v) => onChangeState({ ...state, smallBlind: v })}
-          />
+          시작 레벨
+          <select
+            value={state.currentBlindLevelIndex}
+            onChange={(e) => onSelectStartLevel(Number(e.target.value))}
+          >
+            {state.blindLevels.map((level, idx) => (
+              <option key={idx} value={idx}>
+                Lv {idx + 1} · {levelSummary(level)}
+              </option>
+            ))}
+          </select>
         </label>
 
         <label>
-          BB
-          <PlainNumberInput
-            value={state.bigBlind}
-            onChange={(v) => onChangeState({ ...state, bigBlind: v })}
-          />
-        </label>
-
-        <label>
-          BB Ante
-          <PlainNumberInput
-            value={state.ante}
-            onChange={(v) => onChangeState({ ...state, ante: v })}
-          />
+          현재 블라인드
+          <input value={levelSummary(currentLevel)} readOnly />
         </label>
 
         <label>
@@ -234,6 +355,14 @@ function SetupPanel({ state, onChangeState, onStart }) {
           </select>
         </label>
       </div>
+
+      <BlindLevelsEditor
+        state={state}
+        onSelectStartLevel={onSelectStartLevel}
+        onUpdateBlindLevel={onUpdateBlindLevel}
+        onAddBlindLevel={onAddBlindLevel}
+        onRemoveBlindLevel={onRemoveBlindLevel}
+      />
 
       <div className="players-block">
         <div className="players-head">
@@ -287,8 +416,14 @@ function SetupPanel({ state, onChangeState, onStart }) {
   );
 }
 
-function BlindEditor({ state, onUpdateBlind }) {
+function BlindEditor({ state, onUpdateDealer, onChangeBlindLevel }) {
   const [open, setOpen] = useState(false);
+
+  const currentLevel = state.blindLevels?.[state.currentBlindLevelIndex];
+  const pendingLevel = state.blindLevels?.[state.pendingBlindLevelIndex];
+  const canLevelDown = state.pendingBlindLevelIndex > 0;
+  const canLevelUp = state.pendingBlindLevelIndex < (state.blindLevels?.length || 1) - 1;
+  const pendingChanged = state.pendingBlindLevelIndex !== state.currentBlindLevelIndex;
 
   return (
     <div className="panel blind-editor-panel blind-editor-inline">
@@ -300,8 +435,13 @@ function BlindEditor({ state, onUpdateBlind }) {
         <div className="blind-editor-toggle-left">
           <div className="blind-editor-title">블라인드</div>
           <div className="blind-editor-summary">
-            {state.smallBlind} / {state.bigBlind} / {state.ante}
+            Lv {state.currentBlindLevelIndex + 1} · {levelSummary(currentLevel)}
           </div>
+          {pendingChanged ? (
+            <div className="blind-editor-pending">
+              다음 핸드 예약: Lv {state.pendingBlindLevelIndex + 1} · {levelSummary(pendingLevel)}
+            </div>
+          ) : null}
         </div>
 
         <span className={["blind-editor-chevron", open ? "open" : ""].join(" ")}>
@@ -311,36 +451,28 @@ function BlindEditor({ state, onUpdateBlind }) {
 
       {open && (
         <div className="blind-editor-body blind-editor-body-compact">
-          <div className="blind-editor-grid-compact">
-            <label>
-              SB
-              <PlainNumberInput
-                value={state.smallBlind}
-                onChange={(v) => onUpdateBlind("smallBlind", v)}
-              />
-            </label>
+          <div className="blind-level-live-panel">
+            <div className="blind-level-live-top">
+              <div className="blind-level-live-title">
+                현재 레벨: Lv {state.currentBlindLevelIndex + 1}
+              </div>
+              <div className="blind-level-live-value">{levelSummary(currentLevel)}</div>
+            </div>
 
-            <label>
-              BB
-              <PlainNumberInput
-                value={state.bigBlind}
-                onChange={(v) => onUpdateBlind("bigBlind", v)}
-              />
-            </label>
-
-            <label>
-              Ante
-              <PlainNumberInput
-                value={state.ante}
-                onChange={(v) => onUpdateBlind("ante", v)}
-              />
-            </label>
+            <div className="blind-level-live-actions">
+              <button type="button" disabled={!canLevelDown} onClick={() => onChangeBlindLevel(-1)}>
+                Level -
+              </button>
+              <button type="button" disabled={!canLevelUp} onClick={() => onChangeBlindLevel(1)}>
+                Level +
+              </button>
+            </div>
 
             <label>
               Dealer
               <select
                 value={state.dealerSeatIndex}
-                onChange={(e) => onUpdateBlind("dealerSeatIndex", Number(e.target.value))}
+                onChange={(e) => onUpdateDealer(Number(e.target.value))}
               >
                 {Array.from({ length: MAX_SEATS }).map((_, idx) => (
                   <option key={idx} value={idx}>
@@ -422,7 +554,7 @@ function getSeatLayoutClass(seatIndex) {
   return `table-seat-pos-${seatIndex + 1}`;
 }
 
-function SeatHudCard({ state, player, seatIndex, isCurrent, isDealer, positionLabel = "" }) {
+function SeatHudCard({ player, seatIndex, isCurrent, positionLabel = "" }) {
   if (!player) {
     return (
       <div className="table-seat-hud table-seat-hud-empty">
@@ -461,8 +593,17 @@ function SeatHudCard({ state, player, seatIndex, isCurrent, isDealer, positionLa
           <div className="table-seat-name-row">
             <div className="table-seat-name-group">
               <div className="table-seat-name">{player.name}</div>
-              {positionLabel ? <span className="table-position-chip">{positionLabel}</span> : null}
-              {isDealer ? <span className="table-dealer-chip">D</span> : null}
+              {positionLabel ? (
+                <span
+                  className={
+                    positionLabel === "BTN" || positionLabel === "D/SB"
+                      ? "table-position-chip table-position-btn"
+                      : "table-position-chip"
+                  }
+                >
+                  {positionLabel}
+                </span>
+              ) : null}
             </div>
 
             <div className="table-seat-stack">{player.stack}</div>
@@ -551,11 +692,9 @@ function OvalTableLayout({ state, positionLabels, selectedSeatIndex, onSelectSea
               onClick={() => onSelectSeat(seatIndex)}
             >
               <SeatHudCard
-                state={state}
                 player={state.seats[seatIndex]}
                 seatIndex={seatIndex}
                 isCurrent={state.currentSeatIndex === seatIndex}
-                isDealer={state.dealerSeatIndex === seatIndex}
                 positionLabel={positionLabels[seatIndex] || ""}
               />
             </button>
@@ -883,18 +1022,159 @@ function SeatDetailPanel({
 export default function App() {
   const [state, setState] = useState(createInitialSetup());
   const [selectedSeatIndex, setSelectedSeatIndex] = useState(-1);
-  const positionLabels = getPositionLabels(state);
 
-  const handleStart = () => setState(startHand(state, false));
+  const positionLabels = useMemo(() => getPositionLabels(state), [state]);
+
+  const handleStart = () => setState((prev) => startHand(prev, false));
   const handleNextHand = () => setState((prev) => startNextHand(prev));
   const handleAction = (action, amount = 0) =>
     setState((prev) => applyAction(prev, action, amount));
   const handleSettle = (winnersByPot) =>
     setState((prev) => settleShowdown(prev, winnersByPot));
   const handleUndo = () => setState((prev) => undoAction(prev));
-  const handleBlindUpdate = (key, value) => setState((prev) => ({ ...prev, [key]: value }));
+
+  const handleSelectStartLevel = (targetIndex) => {
+    setState((prev) => {
+      const blindLevels = normalizeBlindLevelsForApp(prev.blindLevels);
+      const nextIndex = clampLevelIndex(blindLevels, targetIndex);
+      const level = blindLevels[nextIndex];
+
+      return {
+        ...prev,
+        blindLevels,
+        currentBlindLevelIndex: nextIndex,
+        pendingBlindLevelIndex: nextIndex,
+        smallBlind: level.smallBlind,
+        bigBlind: level.bigBlind,
+        ante: level.ante,
+      };
+    });
+  };
+
+  const handleUpdateBlindLevel = (levelIndex, key, rawValue) => {
+    setState((prev) => {
+      const blindLevels = normalizeBlindLevelsForApp(prev.blindLevels).map((level, idx) =>
+        idx === levelIndex
+          ? {
+              ...level,
+              [key]: Math.max(0, Number.isFinite(Number(rawValue)) ? Number(rawValue) : 0),
+            }
+          : level
+      );
+
+      const currentBlindLevelIndex = clampLevelIndex(blindLevels, prev.currentBlindLevelIndex);
+      const pendingBlindLevelIndex = clampLevelIndex(blindLevels, prev.pendingBlindLevelIndex);
+      const currentLevel = blindLevels[currentBlindLevelIndex];
+
+      return {
+        ...prev,
+        blindLevels,
+        currentBlindLevelIndex,
+        pendingBlindLevelIndex,
+        smallBlind: currentLevel.smallBlind,
+        bigBlind: currentLevel.bigBlind,
+        ante: currentLevel.ante,
+      };
+    });
+  };
+
+  const handleAddBlindLevel = () => {
+    setState((prev) => {
+      const blindLevels = normalizeBlindLevelsForApp(prev.blindLevels);
+      const last = blindLevels[blindLevels.length - 1] || {
+        smallBlind: 50,
+        bigBlind: 100,
+        ante: 100,
+      };
+
+      const nextLevel = {
+        level: blindLevels.length + 1,
+        smallBlind: last.smallBlind > 0 ? last.smallBlind * 2 : 50,
+        bigBlind: last.bigBlind > 0 ? last.bigBlind * 2 : 100,
+        ante: last.ante > 0 ? last.ante * 2 : 100,
+      };
+
+      return {
+        ...prev,
+        blindLevels: [...blindLevels, nextLevel],
+      };
+    });
+  };
+
+  const handleRemoveBlindLevel = (levelIndex) => {
+    setState((prev) => {
+      const currentLevels = normalizeBlindLevelsForApp(prev.blindLevels);
+      if (currentLevels.length <= 1) return prev;
+
+      const blindLevels = currentLevels
+        .filter((_, idx) => idx !== levelIndex)
+        .map((level, idx) => ({ ...level, level: idx + 1 }));
+
+      const currentBlindLevelIndex = clampLevelIndex(
+        blindLevels,
+        prev.currentBlindLevelIndex > levelIndex
+          ? prev.currentBlindLevelIndex - 1
+          : prev.currentBlindLevelIndex
+      );
+
+      const pendingBlindLevelIndex = clampLevelIndex(
+        blindLevels,
+        prev.pendingBlindLevelIndex > levelIndex
+          ? prev.pendingBlindLevelIndex - 1
+          : prev.pendingBlindLevelIndex
+      );
+
+      const currentLevel = blindLevels[currentBlindLevelIndex];
+
+      return {
+        ...prev,
+        blindLevels,
+        currentBlindLevelIndex,
+        pendingBlindLevelIndex,
+        smallBlind: currentLevel.smallBlind,
+        bigBlind: currentLevel.bigBlind,
+        ante: currentLevel.ante,
+      };
+    });
+  };
+
+  const handleUpdateDealer = (dealerSeatIndex) =>
+    setState((prev) => ({ ...prev, dealerSeatIndex }));
+
+  const handleChangeBlindLevel = (delta) => {
+    setState((prev) => {
+      const blindLevels = normalizeBlindLevelsForApp(prev.blindLevels);
+      const baseIndex =
+        prev.street === "finished"
+          ? prev.currentBlindLevelIndex
+          : prev.pendingBlindLevelIndex ?? prev.currentBlindLevelIndex;
+
+      const nextIndex = clampLevelIndex(blindLevels, baseIndex + delta);
+      const nextLevel = blindLevels[nextIndex];
+
+      if (prev.street === "finished") {
+        return {
+          ...prev,
+          blindLevels,
+          currentBlindLevelIndex: nextIndex,
+          pendingBlindLevelIndex: nextIndex,
+          smallBlind: nextLevel.smallBlind,
+          bigBlind: nextLevel.bigBlind,
+          ante: nextLevel.ante,
+        };
+      }
+
+      return {
+        ...prev,
+        blindLevels,
+        pendingBlindLevelIndex: nextIndex,
+      };
+    });
+  };
+
   const handleAddPlayerToSeat = (seatIndex, player) =>
     setState((prev) => addPlayerToSeat(prev, seatIndex, player));
+
   const handleToggleSitOut = (seatIndex) => setState((prev) => toggleSitOut(prev, seatIndex));
   const handleLeaveSeat = (seatIndex) => setState((prev) => removePlayerFromSeat(prev, seatIndex));
 
@@ -930,7 +1210,15 @@ export default function App() {
       </header>
 
       {state.street === "setup" ? (
-        <SetupPanel state={state} onChangeState={setState} onStart={handleStart} />
+        <SetupPanel
+          state={state}
+          onChangeState={setState}
+          onStart={handleStart}
+          onSelectStartLevel={handleSelectStartLevel}
+          onUpdateBlindLevel={handleUpdateBlindLevel}
+          onAddBlindLevel={handleAddBlindLevel}
+          onRemoveBlindLevel={handleRemoveBlindLevel}
+        />
       ) : (
         <>
           <div className="table-and-side-grid">
@@ -944,7 +1232,11 @@ export default function App() {
 
               <div className="bottom-control-row">
                 <CurrentPlayerActionPanel state={state} onPlayerAction={handleAction} />
-                <BlindEditor state={state} onUpdateBlind={handleBlindUpdate} />
+                <BlindEditor
+                  state={state}
+                  onUpdateDealer={handleUpdateDealer}
+                  onChangeBlindLevel={handleChangeBlindLevel}
+                />
               </div>
             </div>
 

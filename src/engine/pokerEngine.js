@@ -10,6 +10,68 @@ function n(v, fallback = 0) {
   return Number.isFinite(x) ? x : fallback;
 }
 
+function makeBlindLevel(level, smallBlind, bigBlind, ante) {
+  return {
+    level,
+    smallBlind: n(smallBlind, 0),
+    bigBlind: n(bigBlind, 0),
+    ante: n(ante, 0),
+  };
+}
+
+function normalizeBlindLevels(levels) {
+  const source = Array.isArray(levels) && levels.length
+    ? levels
+    : [
+        makeBlindLevel(1, 50, 100, 100),
+        makeBlindLevel(2, 100, 200, 200),
+        makeBlindLevel(3, 200, 400, 400),
+        makeBlindLevel(4, 300, 600, 600),
+        makeBlindLevel(5, 500, 1000, 1000),
+      ];
+
+  return source.map((item, idx) =>
+    makeBlindLevel(
+      idx + 1,
+      item?.smallBlind,
+      item?.bigBlind,
+      item?.ante
+    )
+  );
+}
+
+function clampBlindLevelIndex(levels, index) {
+  const normalized = normalizeBlindLevels(levels);
+  if (!normalized.length) return 0;
+  return Math.max(0, Math.min(n(index, 0), normalized.length - 1));
+}
+
+function applyBlindLevelToState(state, index) {
+  const levels = normalizeBlindLevels(state.blindLevels);
+  const nextIndex = clampBlindLevelIndex(levels, index);
+  const level = levels[nextIndex];
+
+  state.blindLevels = levels;
+  state.currentBlindLevelIndex = nextIndex;
+  state.smallBlind = n(level.smallBlind, 0);
+  state.bigBlind = n(level.bigBlind, 0);
+  state.ante = n(level.ante, 0);
+
+  return state;
+}
+
+function applyPendingBlindLevel(state) {
+  const levels = normalizeBlindLevels(state.blindLevels);
+  const pendingIndex =
+    state.pendingBlindLevelIndex == null
+      ? state.currentBlindLevelIndex ?? 0
+      : state.pendingBlindLevelIndex;
+
+  applyBlindLevelToState(state, pendingIndex);
+  state.pendingBlindLevelIndex = state.currentBlindLevelIndex;
+  return state;
+}
+
 function isAvailableForHand(player) {
   return !!player && !player.sitOut && player.stack > 0;
 }
@@ -85,7 +147,6 @@ function getBlindAssignments(seats, dealerSeatIndex) {
     };
   }
 
-  // Heads-up only works correctly when seats are manually cleared down to 2 occupied seats.
   if (occupied.length === 2) {
     const buttonSeatIndex = dealerSeatIndex;
     const otherSeatIndex = getNextOccupiedFromList(occupied, dealerSeatIndex, 1);
@@ -101,11 +162,8 @@ function getBlindAssignments(seats, dealerSeatIndex) {
 
   const buttonSeatIndex = dealerSeatIndex;
   const sbPositionSeatIndex = getNextOccupiedFromList(occupied, buttonSeatIndex, 1);
-
-  // SB can be dead
   const sbSeatIndex = canPostBlind(seats[sbPositionSeatIndex]) ? sbPositionSeatIndex : -1;
 
-  // BB cannot be dead: find the first occupied seat after SB that can post
   let bbPositionSeatIndex = -1;
   let bbSeatIndex = -1;
 
@@ -575,14 +633,19 @@ export function createInitialSetup() {
   seats[2] = makePlayer(3, "P3", 5000);
   seats[3] = makePlayer(4, "P4", 5000);
 
+  const blindLevels = normalizeBlindLevels();
+
   return {
-    smallBlind: 50,
-    bigBlind: 100,
-    ante: 100,
+    smallBlind: blindLevels[0].smallBlind,
+    bigBlind: blindLevels[0].bigBlind,
+    ante: blindLevels[0].ante,
+    blindLevels,
+    currentBlindLevelIndex: 0,
+    pendingBlindLevelIndex: 0,
     dealerSeatIndex: 0,
     street: "setup",
     currentBet: 0,
-    minRaise: 100,
+    minRaise: blindLevels[0].bigBlind,
     currentSeatIndex: -1,
     totalCommitted: 0,
     confirmedPots: [],
@@ -604,6 +667,8 @@ export function createInitialSetup() {
 
 export function startHand(setupState, keepStacks = false) {
   const state = clone(setupState);
+
+  applyPendingBlindLevel(state);
 
   state.street = "preflop";
   state.currentBet = 0;
@@ -717,6 +782,7 @@ export function startNextHand(prevState) {
       pos === -1 ? occupiedSeats[0] : occupiedSeats[(pos + 1) % occupiedSeats.length];
   }
 
+  applyPendingBlindLevel(next);
   return startHand(next, true);
 }
 
@@ -892,7 +958,6 @@ export function applyAction(prevState, action, rawAmount = 0) {
       const paid = pay(player, player.stack, true);
       const newBet = player.streetInvested;
 
-      // all-in that does not exceed current bet
       if (newBet <= prevCurrentBet) {
         player.streetActionLabel = "ALL-IN";
         player.acted = true;
@@ -900,7 +965,6 @@ export function applyAction(prevState, action, rawAmount = 0) {
         return finalizeStateProgress(state, idx);
       }
 
-      // all-in into unopened pot => bet logic
       if (prevCurrentBet === 0) {
         const minBet = state.bigBlind;
         const isFullBet = newBet >= minBet;
@@ -923,7 +987,6 @@ export function applyAction(prevState, action, rawAmount = 0) {
         return finalizeStateProgress(state, idx);
       }
 
-      // all-in over existing bet => raise logic
       const minRaiseTo = prevCurrentBet + state.minRaise;
       const isFullRaise = newBet >= minRaiseTo;
 
