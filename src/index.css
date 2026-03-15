@@ -253,7 +253,7 @@ select {
   background: linear-gradient(135deg, #fb923c 0%, #f97316 60%, #ea580c 100%);
   color: #111827;
   box-shadow:
-    inset 0 1px 2px rgba(255, 255, 255, 0.10),
+    inset 0 1px 2px rgba(255, 255, 255, 0.1),
     0 6px 14px rgba(0, 0, 0, 0.18);
 }
 
@@ -490,7 +490,7 @@ select {
   border-radius: 999px;
   padding: 4px 10px;
   background: rgba(15, 23, 42, 0.98);
-  border: 1px solid rgba(255, 255, 255, 0.10);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   font-size: 16px;
   font-weight: 900;
   color: #f8fafc;
@@ -614,15 +614,15 @@ select {
 
 .action-panel-compact-bottom {
   display: grid;
-  grid-template-columns: 130px 1fr;
-  gap: 10px;
+  grid-template-columns: 220px 1fr;
+  gap: 12px;
   align-items: end;
 }
 
 .action-panel-compact-amount {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 6px;
 }
 
 .action-panel-compact-amount span {
@@ -632,18 +632,58 @@ select {
 }
 
 .action-panel-compact-amount input {
-  padding: 8px 10px;
+  padding: 12px 10px;
+  text-align: center;
+  font-size: 18px;
+  font-weight: 800;
 }
 
 .action-panel-compact-buttons {
   display: grid;
-  grid-template-columns: repeat(6, minmax(60px, 1fr));
-  gap: 6px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
 }
 
 .action-panel-compact-buttons button {
+  min-height: 56px;
+  padding: 12px 10px;
+  font-size: 16px;
+  font-weight: 900;
+  border-radius: 14px;
+}
+
+.amount-control {
+  display: grid;
+  gap: 8px;
+}
+
+.amount-control-main {
+  display: grid;
+  grid-template-columns: 60px 1fr 60px;
+  gap: 6px;
+  align-items: stretch;
+}
+
+.amount-control-main button {
+  min-height: 42px;
+  font-size: 13px;
+  font-weight: 800;
+  border-radius: 12px;
   padding: 8px 6px;
-  font-size: 11px;
+}
+
+.amount-quick-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.amount-quick-buttons button {
+  min-height: 38px;
+  font-size: 13px;
+  font-weight: 800;
+  border-radius: 12px;
+  padding: 8px 8px;
 }
 
 .seat-detail-panel {
@@ -789,7 +829,7 @@ select {
 
 .blind-editor-grid-compact input,
 .blind-editor-grid-compact select {
-  padding: 8px 10px;
+  padding: 10px 10px;
 }
 
 .showdown-floating {
@@ -920,7 +960,27 @@ select {
   }
 
   .action-panel-compact-buttons {
-    grid-template-columns: repeat(3, minmax(68px, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .action-panel-compact-buttons button {
+    min-height: 54px;
+    font-size: 15px;
+  }
+
+  .amount-control-main {
+    grid-template-columns: 56px 1fr 56px;
+  }
+
+  .amount-control-main button {
+    min-height: 40px;
+    font-size: 12px;
+  }
+
+  .amount-quick-buttons button {
+    min-height: 36px;
+    font-size: 12px;
   }
 
   .seat-detail-actions {

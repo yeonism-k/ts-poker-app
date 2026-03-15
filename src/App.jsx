@@ -15,7 +15,7 @@ import {
   undoAction,
 } from "./engine/pokerEngine";
 
-function NumberInput({ value, onChange, min = 0, step = 1 }) {
+function PlainNumberInput({ value, onChange, min = 0, step = 1 }) {
   return (
     <input
       type="number"
@@ -198,7 +198,7 @@ function SetupPanel({ state, onChangeState, onStart }) {
       <div className="setup-grid">
         <label>
           SB
-          <NumberInput
+          <PlainNumberInput
             value={state.smallBlind}
             onChange={(v) => onChangeState({ ...state, smallBlind: v })}
           />
@@ -206,7 +206,7 @@ function SetupPanel({ state, onChangeState, onStart }) {
 
         <label>
           BB
-          <NumberInput
+          <PlainNumberInput
             value={state.bigBlind}
             onChange={(v) => onChangeState({ ...state, bigBlind: v })}
           />
@@ -214,7 +214,7 @@ function SetupPanel({ state, onChangeState, onStart }) {
 
         <label>
           BB Ante
-          <NumberInput
+          <PlainNumberInput
             value={state.ante}
             onChange={(v) => onChangeState({ ...state, ante: v })}
           />
@@ -255,7 +255,7 @@ function SetupPanel({ state, onChangeState, onStart }) {
                   value={player.name}
                   onChange={(e) => updateSeatPlayer(seatIndex, "name", e.target.value)}
                 />
-                <NumberInput
+                <PlainNumberInput
                   value={player.startStack}
                   onChange={(v) => updateSeatPlayer(seatIndex, "startStack", v)}
                   min={0}
@@ -314,7 +314,7 @@ function BlindEditor({ state, onUpdateBlind }) {
           <div className="blind-editor-grid-compact">
             <label>
               SB
-              <NumberInput
+              <PlainNumberInput
                 value={state.smallBlind}
                 onChange={(v) => onUpdateBlind("smallBlind", v)}
               />
@@ -322,12 +322,18 @@ function BlindEditor({ state, onUpdateBlind }) {
 
             <label>
               BB
-              <NumberInput value={state.bigBlind} onChange={(v) => onUpdateBlind("bigBlind", v)} />
+              <PlainNumberInput
+                value={state.bigBlind}
+                onChange={(v) => onUpdateBlind("bigBlind", v)}
+              />
             </label>
 
             <label>
               Ante
-              <NumberInput value={state.ante} onChange={(v) => onUpdateBlind("ante", v)} />
+              <PlainNumberInput
+                value={state.ante}
+                onChange={(v) => onUpdateBlind("ante", v)}
+              />
             </label>
 
             <label>
@@ -586,6 +592,11 @@ function CurrentPlayerActionPanel({ state, onPlayerAction }) {
     setAmount(state.currentBet === 0 ? state.bigBlind : minRaiseTo);
   }, [state.currentSeatIndex, state.currentBet, state.bigBlind, minRaiseTo, currentPlayer]);
 
+  const applyAmount = (next) => {
+    const safe = Math.max(0, Number.isFinite(next) ? next : 0);
+    setAmount(safe);
+  };
+
   if (!canDoAction) {
     return (
       <div className="panel action-panel-compact action-panel-empty">
@@ -632,13 +643,35 @@ function CurrentPlayerActionPanel({ state, onPlayerAction }) {
       <div className="action-panel-compact-bottom">
         <label className="action-panel-compact-amount">
           <span>Amount</span>
-          <input
-            type="number"
-            min="0"
-            step="1"
-            value={amount}
-            onChange={(e) => setAmount(Number(e.target.value))}
-          />
+
+          <div className="amount-control">
+            <div className="amount-control-main">
+              <button type="button" onClick={() => applyAmount(amount - 100)}>
+                -100
+              </button>
+
+              <input
+                type="number"
+                min="0"
+                step="100"
+                value={amount}
+                onChange={(e) => applyAmount(Number(e.target.value))}
+              />
+
+              <button type="button" onClick={() => applyAmount(amount + 100)}>
+                +100
+              </button>
+            </div>
+
+            <div className="amount-quick-buttons">
+              <button type="button" onClick={() => applyAmount(amount + 1000)}>
+                +1000
+              </button>
+              <button type="button" onClick={() => applyAmount(amount + 5000)}>
+                +5000
+              </button>
+            </div>
+          </div>
         </label>
 
         <div className="action-panel-compact-buttons">
