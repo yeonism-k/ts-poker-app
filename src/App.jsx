@@ -886,7 +886,13 @@ function OvalTableLayout({
   return (
     <div className={["table-stage", compact ? "table-stage-compact" : ""].join(" ")}>
       <div className="poker-table-shell">
-        <div className={["poker-table-oval", compact ? "poker-table-oval-compact" : ""].join(" ")}>
+        <div
+  className={[
+    "poker-table-oval",
+    compact ? "poker-table-oval-compact" : "",
+    compact ? "poker-table-oval-operator" : "",
+  ].join(" ")}
+>
           <div className="table-center-hud">
             <div className="table-center-street">{currentStreet}</div>
 
@@ -1057,7 +1063,7 @@ function CurrentPlayerActionPanel({ state, onPlayerAction }) {
           </div>
         </div>
 
-        <div className="action-panel-compact-buttons">
+        <div className="action-panel-compact-buttons action-panel-compact-buttons-large">
           <button onClick={() => onPlayerAction("fold")}>Fold</button>
           <button disabled={!canCheck} onClick={() => onPlayerAction("check")}>
             Check
@@ -1326,6 +1332,7 @@ function OperatorScreen({
     <div
       className={[
         "operator-layout",
+        "operator-layout-tablet-optimized",
         selectedSeatIndex >= 0 ? "operator-layout-with-side" : "operator-layout-full",
       ].join(" ")}
     >
