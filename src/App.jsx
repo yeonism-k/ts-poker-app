@@ -103,7 +103,9 @@ function clampLevelIndex(levels, index, chipUnit = DEFAULT_CHIP_UNIT) {
 
 function levelSummary(level) {
   if (!level) return "-";
-  return `${formatBlind(level.smallBlind)} / ${formatBlind(level.bigBlind)} / ${formatBlind(level.ante)}`;
+  return `${formatBlind(level.smallBlind)} / ${formatBlind(level.bigBlind)} / ${formatBlind(
+    level.ante
+  )}`;
 }
 
 function formatBlind(value) {
@@ -191,22 +193,16 @@ function getPositionLabels(state) {
       : state.dealerSeatIndex;
 
   const sbSeatIndex =
-    Number.isInteger(forced.sbSeatIndex) && forced.sbSeatIndex >= 0
-      ? forced.sbSeatIndex
-      : -1;
+    Number.isInteger(forced.sbSeatIndex) && forced.sbSeatIndex >= 0 ? forced.sbSeatIndex : -1;
 
   const bbSeatIndex =
-    Number.isInteger(forced.bbSeatIndex) && forced.bbSeatIndex >= 0
-      ? forced.bbSeatIndex
-      : -1;
+    Number.isInteger(forced.bbSeatIndex) && forced.bbSeatIndex >= 0 ? forced.bbSeatIndex : -1;
 
   const handSeatSet = new Set(handSeats);
 
-  // Heads-up: button seat is D/SB, other is BB
   if (activeCount === 2) {
     if (buttonSeatIndex >= 0 && state.seats[buttonSeatIndex]) {
-      labels[buttonSeatIndex] =
-        handSeatSet.has(buttonSeatIndex) ? "D/SB" : "DEAD BTN";
+      labels[buttonSeatIndex] = handSeatSet.has(buttonSeatIndex) ? "D/SB" : "DEAD BTN";
     }
 
     if (bbSeatIndex >= 0 && handSeatSet.has(bbSeatIndex)) {
@@ -216,7 +212,6 @@ function getPositionLabels(state) {
     return labels;
   }
 
-  // 3명 이상
   if (buttonSeatIndex >= 0 && state.seats[buttonSeatIndex]) {
     labels[buttonSeatIndex] = handSeatSet.has(buttonSeatIndex) ? "BTN" : "DEAD BTN";
   }
@@ -242,7 +237,6 @@ function getPositionLabels(state) {
     (role) => role !== "SB" && role !== "BB"
   );
 
-  // button 다음부터 시계방향으로 정렬
   const orderedRoleSeats = [...roleSeats].sort((a, b) => {
     const da = (a - buttonSeatIndex + MAX_SEATS) % MAX_SEATS;
     const db = (b - buttonSeatIndex + MAX_SEATS) % MAX_SEATS;
@@ -325,10 +319,9 @@ function BlindLevelsEditor({
             return (
               <div
                 key={idx}
-                className={[
-                  "blind-level-row",
-                  isSelected ? "blind-level-row-selected" : "",
-                ].join(" ")}
+                className={["blind-level-row", isSelected ? "blind-level-row-selected" : ""].join(
+                  " "
+                )}
               >
                 <div className="blind-level-row-top">
                   <div className="blind-level-badge">Lv {idx + 1}</div>
@@ -423,6 +416,7 @@ function SetupPanel({
 
     const existingIds = state.seats.filter(Boolean).map((p) => p.id);
     const nextId = existingIds.length ? Math.max(...existingIds) + 1 : 1;
+    const baseStack = floorToChipUnit(5000, state.chipUnit);
 
     onChangeState({
       ...state,
@@ -431,8 +425,8 @@ function SetupPanel({
           ? {
               id: nextId,
               name: `P${nextId}`,
-              startStack: 5000,
-              stack: 5000,
+              startStack: baseStack,
+              stack: baseStack,
               totalInvested: 0,
               anteInvested: 0,
               streetInvested: 0,
@@ -606,9 +600,7 @@ function BlindEditor({ state, onChangeBlindLevel }) {
             Lv {state.currentBlindLevelIndex + 1} · {levelSummary(currentLevel)}
           </div>
           {pendingChanged ? (
-            <div className="blind-editor-pending">
-              예약: Lv {state.pendingBlindLevelIndex + 1}
-            </div>
+            <div className="blind-editor-pending">예약: Lv {state.pendingBlindLevelIndex + 1}</div>
           ) : null}
         </div>
 
@@ -624,19 +616,11 @@ function BlindEditor({ state, onChangeBlindLevel }) {
             </div>
 
             <div className="blind-level-live-actions">
-              <button
-                type="button"
-                disabled={!canLevelDown}
-                onClick={() => onChangeBlindLevel(-1)}
-              >
+              <button type="button" disabled={!canLevelDown} onClick={() => onChangeBlindLevel(-1)}>
                 Level -
               </button>
 
-              <button
-                type="button"
-                disabled={!canLevelUp}
-                onClick={() => onChangeBlindLevel(1)}
-              >
+              <button type="button" disabled={!canLevelUp} onClick={() => onChangeBlindLevel(1)}>
                 Level +
               </button>
             </div>
@@ -714,6 +698,8 @@ function ShowdownPanel({ state, onSettle }) {
   };
 
   const handleNext = () => {
+    if (!(winnersByPot[currentPotIndex] || []).length) return;
+
     if (currentPotIndex < pots.length - 1) {
       setCurrentPotIndex((prev) => prev + 1);
       return;
@@ -754,10 +740,9 @@ function ShowdownPanel({ state, onSettle }) {
               <button
                 key={seatIndex}
                 type="button"
-                className={[
-                  "winner-select-btn",
-                  checked ? "winner-select-btn-active" : "",
-                ].join(" ")}
+                className={["winner-select-btn", checked ? "winner-select-btn-active" : ""].join(
+                  " "
+                )}
                 onClick={() => toggleWinner(seatIndex)}
               >
                 <span className="winner-select-seat">{seatIndex + 1}</span>
@@ -768,7 +753,11 @@ function ShowdownPanel({ state, onSettle }) {
         </div>
       </div>
 
-      <button className="primary big-btn" onClick={handleNext}>
+      <button
+        className="primary big-btn"
+        onClick={handleNext}
+        disabled={!(winnersByPot[currentPotIndex] || []).length}
+      >
         {currentPotIndex < pots.length - 1 ? "다음 팟" : "선택한 승자로 분배"}
       </button>
     </div>
@@ -879,16 +868,25 @@ function SeatHudCard({ player, seatIndex, isCurrent, positionLabel = "" }) {
   );
 }
 
-function OvalTableLayout({ state, positionLabels, selectedSeatIndex, onSelectSeat }) {
+function OvalTableLayout({
+  state,
+  positionLabels,
+  selectedSeatIndex,
+  onSelectSeat,
+  interactive = true,
+  compact = false,
+}) {
   const potItems = getDisplayPotItems(state);
   const currentStreet = streetLabel(state.street).toUpperCase();
-  const blindText = `${formatBlind(state.smallBlind)} / ${formatBlind(state.bigBlind)} / ${formatBlind(state.ante)}`;
+  const blindText = `${formatBlind(state.smallBlind)} / ${formatBlind(state.bigBlind)} / ${formatBlind(
+    state.ante
+  )}`;
   const blindLevel = `LEVEL ${state.currentBlindLevelIndex + 1}`;
 
   return (
-    <div className="table-stage">
+    <div className={["table-stage", compact ? "table-stage-compact" : ""].join(" ")}>
       <div className="poker-table-shell">
-        <div className="poker-table-oval">
+        <div className={["poker-table-oval", compact ? "poker-table-oval-compact" : ""].join(" ")}>
           <div className="table-center-hud">
             <div className="table-center-street">{currentStreet}</div>
 
@@ -913,25 +911,42 @@ function OvalTableLayout({ state, positionLabels, selectedSeatIndex, onSelectSea
             </div>
           </div>
 
-          {Array.from({ length: MAX_SEATS }).map((_, seatIndex) => (
-            <button
-              key={seatIndex}
-              type="button"
-              className={[
-                "table-seat-wrap",
-                getSeatLayoutClass(seatIndex),
-                selectedSeatIndex === seatIndex ? "table-seat-wrap-selected" : "",
-              ].join(" ")}
-              onClick={() => onSelectSeat(seatIndex)}
-            >
+          {Array.from({ length: MAX_SEATS }).map((_, seatIndex) => {
+            const commonClassName = [
+              "table-seat-wrap",
+              getSeatLayoutClass(seatIndex),
+              selectedSeatIndex === seatIndex ? "table-seat-wrap-selected" : "",
+              !interactive ? "table-seat-wrap-static" : "",
+            ].join(" ");
+
+            const content = (
               <SeatHudCard
                 player={state.seats[seatIndex]}
                 seatIndex={seatIndex}
                 isCurrent={state.currentSeatIndex === seatIndex}
                 positionLabel={positionLabels[seatIndex] || ""}
               />
-            </button>
-          ))}
+            );
+
+            if (!interactive) {
+              return (
+                <div key={seatIndex} className={commonClassName}>
+                  {content}
+                </div>
+              );
+            }
+
+            return (
+              <button
+                key={seatIndex}
+                type="button"
+                className={commonClassName}
+                onClick={() => onSelectSeat?.(seatIndex)}
+              >
+                {content}
+              </button>
+            );
+          })}
         </div>
       </div>
     </div>
@@ -1089,6 +1104,8 @@ function SeatDetailPanel({
     }
   }, [selectedSeatIndex, player]);
 
+  const canEditStack = state.street === "setup" || state.street === "finished";
+
   const handleRename = () => {
     if (!player) return;
     const trimmed = newName.trim();
@@ -1103,6 +1120,8 @@ function SeatDetailPanel({
   };
 
   const handleStackApply = () => {
+    if (!canEditStack) return;
+
     const safeStack = floorToChipUnit(newStack, state.chipUnit);
 
     onDirectStateChange((prev) => ({
@@ -1110,21 +1129,11 @@ function SeatDetailPanel({
       seats: prev.seats.map((p, idx) => {
         if (idx !== selectedSeatIndex || !p) return p;
 
-        const next = { ...p, stack: safeStack };
-
-        if (prev.street === "setup") {
-          next.startStack = safeStack;
-        }
-
-        if (prev.street !== "setup" && safeStack > 0 && p.allIn) {
-          next.allIn = false;
-        }
-
-        if (prev.street !== "setup" && safeStack === 0 && !p.folded && p.inHand) {
-          next.allIn = true;
-        }
-
-        return next;
+        return {
+          ...p,
+          stack: safeStack,
+          startStack: safeStack,
+        };
       }),
     }));
   };
@@ -1193,11 +1202,18 @@ function SeatDetailPanel({
                 min="0"
                 step={state.chipUnit}
                 value={newStack}
+                disabled={!canEditStack}
                 onChange={(e) => setNewStack(Number(e.target.value))}
               />
             </label>
 
-            <button onClick={handleStackApply}>스택 적용</button>
+            <button onClick={handleStackApply} disabled={!canEditStack}>
+              스택 적용
+            </button>
+
+            {!canEditStack && (
+              <div className="muted">진행 중인 핸드에서는 스택을 직접 수정할 수 없습니다.</div>
+            )}
           </div>
 
           <div className="seat-detail-actions">
@@ -1248,9 +1264,145 @@ function SeatDetailPanel({
   );
 }
 
+function ModeTabs({ mode, onChange }) {
+  return (
+    <div className="mode-tabs">
+      <button
+        type="button"
+        className={["mode-tab-btn", mode === "display" ? "mode-tab-btn-active" : ""].join(" ")}
+        onClick={() => onChange("display")}
+      >
+        DISPLAY
+      </button>
+      <button
+        type="button"
+        className={["mode-tab-btn", mode === "operator" ? "mode-tab-btn-active" : ""].join(" ")}
+        onClick={() => onChange("operator")}
+      >
+        OPERATOR
+      </button>
+    </div>
+  );
+}
+
+function DisplayScreen({ state, positionLabels, onSwitchToOperator }) {
+  return (
+    <div className="display-screen">
+      <div className="display-mode-topbar">
+        <div className="display-mode-badge">DISPLAY MODE</div>
+        <button type="button" onClick={onSwitchToOperator}>
+          Operator로 전환
+        </button>
+      </div>
+
+      <div className="display-mode-table-wrap">
+        <OvalTableLayout
+          state={state}
+          positionLabels={positionLabels}
+          selectedSeatIndex={-1}
+          interactive={false}
+        />
+      </div>
+    </div>
+  );
+}
+
+function OperatorScreen({
+  state,
+  positionLabels,
+  selectedSeatIndex,
+  onSelectSeat,
+  onPlayerAction,
+  onSettle,
+  onChangeBlindLevel,
+  onUpdateDealer,
+  onRunChipRace,
+  onDirectStateChange,
+  onAddPlayerToSeat,
+  onToggleSitOut,
+  onLeaveSeat,
+}) {
+  return (
+    <div
+      className={[
+        "operator-layout",
+        selectedSeatIndex >= 0 ? "operator-layout-with-side" : "operator-layout-full",
+      ].join(" ")}
+    >
+      <div className="operator-main-col">
+        <OvalTableLayout
+          state={state}
+          positionLabels={positionLabels}
+          selectedSeatIndex={selectedSeatIndex}
+          onSelectSeat={onSelectSeat}
+          interactive
+          compact
+        />
+
+        <div
+          className={[
+            "bottom-control-row",
+            state.street === "showdown" || state.street === "finished"
+              ? "bottom-control-row-with-showdown"
+              : "",
+          ].join(" ")}
+        >
+          <CurrentPlayerActionPanel state={state} onPlayerAction={onPlayerAction} />
+
+          <BlindEditor state={state} onChangeBlindLevel={onChangeBlindLevel} />
+
+          <TableUtilityPanel
+            state={state}
+            onUpdateDealer={onUpdateDealer}
+            onRunChipRace={onRunChipRace}
+          />
+
+          {state.street === "showdown" && (
+            <div className="showdown-inline-panel">
+              <ShowdownPanel state={state} onSettle={onSettle} />
+            </div>
+          )}
+
+          {state.street === "finished" && (
+            <div className="showdown-inline-panel">
+              <div className="panel hand-finished-panel">
+                <h2>핸드 종료</h2>
+                <div className="muted">
+                  다음 핸드를 시작하거나 칩레이스를 적용할 수 있습니다.
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {selectedSeatIndex >= 0 && (
+        <div className="operator-side-col">
+          <SeatDetailPanel
+            state={state}
+            selectedSeatIndex={selectedSeatIndex}
+            onSelectSeat={onSelectSeat}
+            onDirectStateChange={onDirectStateChange}
+            onAddPlayerToSeat={onAddPlayerToSeat}
+            onToggleSitOut={onToggleSitOut}
+            onLeaveSeat={onLeaveSeat}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function App() {
   const [state, setState] = useState(createInitialSetup());
   const [selectedSeatIndex, setSelectedSeatIndex] = useState(-1);
+  const [mode, setMode] = useState("operator");
+
+  useEffect(() => {
+    if (mode === "display") {
+      setSelectedSeatIndex(-1);
+    }
+  }, [mode]);
 
   const handleToggleSeatDetail = (seatIndex) => {
     setSelectedSeatIndex((prev) => (prev === seatIndex ? -1 : seatIndex));
@@ -1288,13 +1440,14 @@ export default function App() {
 
   const handleUpdateBlindLevel = (levelIndex, key, rawValue) => {
     setState((prev) => {
-      const blindLevels = normalizeBlindLevelsForApp(prev.blindLevels, prev.chipUnit).map((level, idx) =>
-        idx === levelIndex
-          ? {
-              ...level,
-              [key]: Math.max(0, floorToChipUnit(rawValue, prev.chipUnit)),
-            }
-          : level
+      const blindLevels = normalizeBlindLevelsForApp(prev.blindLevels, prev.chipUnit).map(
+        (level, idx) =>
+          idx === levelIndex
+            ? {
+                ...level,
+                [key]: Math.max(0, floorToChipUnit(rawValue, prev.chipUnit)),
+              }
+            : level
       );
 
       const currentBlindLevelIndex = clampLevelIndex(
@@ -1435,6 +1588,7 @@ export default function App() {
   const resetAll = () => {
     setState(createInitialSetup());
     setSelectedSeatIndex(-1);
+    setMode("operator");
   };
 
   return (
@@ -1445,16 +1599,22 @@ export default function App() {
         </div>
 
         <div className="topbar-right">
-          {state.street !== "setup" && (
+          {state.street !== "setup" && <ModeTabs mode={mode} onChange={setMode} />}
+
+          {state.street !== "setup" && mode === "operator" && (
             <button onClick={handleUndo} disabled={!state.history?.length}>
               Undo
             </button>
           )}
 
-          {state.street === "finished" && (
+          {state.street === "finished" && mode === "operator" && (
             <button className="primary" onClick={handleNextHand}>
               다음 핸드 시작
             </button>
+          )}
+
+          {mode === "display" && state.street !== "setup" && (
+            <button onClick={() => setMode("operator")}>Operator 열기</button>
           )}
 
           <button className="danger" onClick={resetAll}>
@@ -1474,73 +1634,28 @@ export default function App() {
           onRemoveBlindLevel={handleRemoveBlindLevel}
           onRunChipRace={handleRunChipRace}
         />
+      ) : mode === "display" ? (
+        <DisplayScreen
+          state={state}
+          positionLabels={positionLabels}
+          onSwitchToOperator={() => setMode("operator")}
+        />
       ) : (
-        <div
-          className={[
-            "table-and-side-grid",
-            selectedSeatIndex >= 0 ? "table-and-side-grid-with-side" : "table-and-side-grid-full",
-          ].join(" ")}
-        >
-          <div className="table-main-col">
-            <OvalTableLayout
-              state={state}
-              positionLabels={positionLabels}
-              selectedSeatIndex={selectedSeatIndex}
-              onSelectSeat={handleToggleSeatDetail}
-            />
-
-            <div
-              className={[
-                "bottom-control-row",
-                state.street === "showdown" || state.street === "finished"
-                  ? "bottom-control-row-with-showdown"
-                  : "",
-              ].join(" ")}
-            >
-              <CurrentPlayerActionPanel state={state} onPlayerAction={handleAction} />
-
-              <BlindEditor state={state} onChangeBlindLevel={handleChangeBlindLevel} />
-
-              <TableUtilityPanel
-                state={state}
-                onUpdateDealer={handleUpdateDealer}
-                onRunChipRace={handleRunChipRace}
-              />
-
-              {state.street === "showdown" && (
-                <div className="showdown-inline-panel">
-                  <ShowdownPanel state={state} onSettle={handleSettle} />
-                </div>
-              )}
-
-              {state.street === "finished" && (
-                <div className="showdown-inline-panel">
-                  <div className="panel hand-finished-panel">
-                    <h2>핸드 종료</h2>
-                    <div className="muted">다음 핸드를 시작하거나 칩레이스를 적용할 수 있습니다.</div>
-                    <button className="primary big-btn" onClick={handleNextHand}>
-                      다음 핸드 시작
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {selectedSeatIndex >= 0 && (
-            <div className="table-side-col">
-              <SeatDetailPanel
-                state={state}
-                selectedSeatIndex={selectedSeatIndex}
-                onSelectSeat={setSelectedSeatIndex}
-                onDirectStateChange={setState}
-                onAddPlayerToSeat={handleAddPlayerToSeat}
-                onToggleSitOut={handleToggleSitOut}
-                onLeaveSeat={handleLeaveSeat}
-              />
-            </div>
-          )}
-        </div>
+        <OperatorScreen
+          state={state}
+          positionLabels={positionLabels}
+          selectedSeatIndex={selectedSeatIndex}
+          onSelectSeat={handleToggleSeatDetail}
+          onPlayerAction={handleAction}
+          onSettle={handleSettle}
+          onChangeBlindLevel={handleChangeBlindLevel}
+          onUpdateDealer={handleUpdateDealer}
+          onRunChipRace={handleRunChipRace}
+          onDirectStateChange={setState}
+          onAddPlayerToSeat={handleAddPlayerToSeat}
+          onToggleSitOut={handleToggleSitOut}
+          onLeaveSeat={handleLeaveSeat}
+        />
       )}
     </div>
   );

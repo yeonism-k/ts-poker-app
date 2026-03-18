@@ -74,6 +74,32 @@ button.danger {
   flex-wrap: wrap;
 }
 
+.mode-tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px;
+  border-radius: 14px;
+  background: #111827;
+  border: 1px solid #334155;
+}
+
+.mode-tab-btn {
+  min-width: 112px;
+  min-height: 40px;
+  padding: 8px 14px;
+  border-radius: 10px;
+  background: transparent;
+  color: #cbd5e1;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+}
+
+.mode-tab-btn-active {
+  background: #2563eb;
+  color: #ffffff;
+}
+
 .panel {
   background: #111827;
   border: 1px solid #334155;
@@ -420,23 +446,54 @@ select {
   color: #94a3b8;
 }
 
-.table-and-side-grid {
+.display-screen {
+  display: grid;
+  gap: 12px;
+}
+
+.display-mode-topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.display-mode-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: #111827;
+  border: 1px solid #334155;
+  color: #f8fafc;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 1px;
+}
+
+.display-mode-table-wrap {
+  min-width: 0;
+}
+
+.operator-layout {
   display: grid;
   gap: 14px;
   align-items: start;
   margin-bottom: 14px;
 }
 
-.table-and-side-grid-full {
+.operator-layout-full {
   grid-template-columns: minmax(0, 1fr);
 }
 
-.table-and-side-grid-with-side {
+.operator-layout-with-side {
   grid-template-columns: minmax(0, 1fr) 320px;
 }
 
-.table-main-col,
-.table-side-col {
+.operator-main-col,
+.operator-side-col {
   display: grid;
   gap: 14px;
   align-content: start;
@@ -447,6 +504,10 @@ select {
   overflow: hidden;
   margin-bottom: 10px;
   padding-bottom: 0;
+}
+
+.table-stage-compact {
+  margin-bottom: 0;
 }
 
 .poker-table-shell {
@@ -470,6 +531,11 @@ select {
     inset 0 18px 40px rgba(255, 255, 255, 0.02),
     inset 0 -28px 44px rgba(0, 0, 0, 0.28),
     0 18px 44px rgba(0, 0, 0, 0.36);
+}
+
+.poker-table-oval-compact {
+  width: 900px;
+  height: 570px;
 }
 
 .poker-table-oval::before {
@@ -576,8 +642,16 @@ select {
   cursor: pointer;
 }
 
+.table-seat-wrap-static {
+  cursor: default;
+}
+
 .table-seat-wrap:hover .table-seat-hud {
   border-color: rgba(251, 191, 36, 0.34);
+}
+
+.table-seat-wrap-static:hover .table-seat-hud {
+  border-color: rgba(255, 255, 255, 0.09);
 }
 
 .table-seat-wrap-selected .table-seat-hud {
@@ -742,7 +816,7 @@ select {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 95px
+  max-width: 95px;
 }
 
 .table-position-chip {
@@ -1235,7 +1309,6 @@ select {
   overflow: visible;
 }
 
-
 .winner-list-buttons {
   align-content: start;
 }
@@ -1248,15 +1321,12 @@ select {
   border: 1px solid #334155;
   background: #1e293b;
   color: #e5e7eb;
-
   display: grid;
   grid-template-rows: 14px 1fr;
   justify-items: center;
   align-items: center;
   gap: 2px;
-
   text-align: center;
-
   transition:
     transform 0.12s ease,
     border-color 0.12s ease,
@@ -1395,13 +1465,18 @@ select {
 }
 
 @media (max-width: 1400px) {
-  .table-and-side-grid-with-side {
+  .operator-layout-with-side {
     grid-template-columns: 1fr 300px;
   }
 
   .poker-table-oval {
     width: 900px;
     height: 580px;
+  }
+
+  .poker-table-oval-compact {
+    width: 840px;
+    height: 540px;
   }
 
   .table-seat-hud {
@@ -1446,9 +1521,9 @@ select {
 }
 
 @media (max-width: 1200px) {
-  .table-and-side-grid,
-  .table-and-side-grid-with-side,
-  .table-and-side-grid-full {
+  .operator-layout,
+  .operator-layout-with-side,
+  .operator-layout-full {
     grid-template-columns: 1fr;
   }
 
@@ -1506,6 +1581,11 @@ select {
   .blind-levels-list,
   .players-scroll-area {
     max-height: 420px;
+  }
+
+  .display-mode-topbar {
+    flex-direction: column;
+    align-items: stretch;
   }
 }
 
@@ -1592,6 +1672,15 @@ select {
     flex: 1;
   }
 
+  .mode-tabs {
+    width: 100%;
+  }
+
+  .mode-tab-btn {
+    flex: 1;
+    min-width: 0;
+  }
+
   .setup-grid-top {
     grid-template-columns: 1fr;
   }
@@ -1661,9 +1750,15 @@ select {
 }
 
 @keyframes seatGlow {
-  0%   { box-shadow: 0 0 10px rgba(251,191,36,0.35); }
-  50%  { box-shadow: 0 0 20px rgba(251,191,36,0.6); }
-  100% { box-shadow: 0 0 10px rgba(251,191,36,0.35); }
+  0% {
+    box-shadow: 0 0 10px rgba(251, 191, 36, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(251, 191, 36, 0.6);
+  }
+  100% {
+    box-shadow: 0 0 10px rgba(251, 191, 36, 0.35);
+  }
 }
 
 .table-seat-hud-current {
