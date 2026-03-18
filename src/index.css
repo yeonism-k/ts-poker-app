@@ -1765,12 +1765,14 @@ select {
   animation: seatGlow 1.8s ease-in-out infinite;
 }
 
-/* =========================
-   TABLET OPERATOR OPTIMIZE
-   STRONG VERSION
-   ========================= */
+/* =========================================
+   TABLET OPERATOR MODE (FORCED VERSION)
+   ========================================= */
 
-@media (max-width: 1200px) {
+/* 태블릿 + 대부분 환경에서 무조건 적용되게 넓힘 */
+@media (max-width: 1600px) {
+
+  /* ===== 레이아웃 간격 ===== */
   .operator-layout-tablet-optimized {
     gap: 8px;
   }
@@ -1779,185 +1781,67 @@ select {
     gap: 8px;
   }
 
-  /* 테이블 영역 아주 많이 축소 */
-  .operator-layout-tablet-optimized .table-stage-compact {
-    margin-bottom: 0;
-  }
-
+  /* ===== 테이블 강제 축소 ===== */
   .operator-layout-tablet-optimized .poker-table-shell {
     overflow: visible !important;
     justify-content: center !important;
-    padding-bottom: 0 !important;
   }
 
   .operator-layout-tablet-optimized .poker-table-oval-operator {
-    width: 540px !important;
-    height: 340px !important;
-    border-width: 7px !important;
+    width: 520px !important;
+    height: 320px !important;
+    border-width: 6px !important;
   }
 
   .operator-layout-tablet-optimized .poker-table-oval-operator::before {
     inset: 14px 18px !important;
   }
 
+  /* ===== 중앙 HUD 축소 ===== */
   .operator-layout-tablet-optimized .table-center-hud {
     min-width: 180px !important;
-    max-width: 210px !important;
+    max-width: 200px !important;
     padding: 8px 10px !important;
-    border-radius: 16px !important;
   }
 
   .operator-layout-tablet-optimized .table-center-street {
     font-size: 13px !important;
-    margin-bottom: 4px !important;
-  }
-
-  .operator-layout-tablet-optimized .table-center-pots {
-    gap: 4px !important;
-    margin-bottom: 4px !important;
-  }
-
-  .operator-layout-tablet-optimized .table-center-pot-pill {
-    padding: 5px 8px !important;
-  }
-
-  .operator-layout-tablet-optimized .table-center-pot-label {
-    font-size: 8px !important;
   }
 
   .operator-layout-tablet-optimized .table-center-pot-value {
     font-size: 13px !important;
   }
 
-  .operator-layout-tablet-optimized .table-center-level {
-    font-size: 9px !important;
-  }
-
-  .operator-layout-tablet-optimized .table-center-blind-values {
-    font-size: 11px !important;
-  }
-
-  /* 좌석 카드도 확 줄임 */
+  /* ===== 좌석 카드 축소 ===== */
   .operator-layout-tablet-optimized .table-seat-hud {
-    width: 96px !important;
-    min-height: 40px !important;
-    padding: 4px 5px !important;
-    border-radius: 10px !important;
+    width: 90px !important;
+    min-height: 38px !important;
+    padding: 4px !important;
   }
 
   .operator-layout-tablet-optimized .table-seat-name {
     font-size: 9px !important;
-    max-width: 42px !important;
-  }
-
-  .operator-layout-tablet-optimized .table-position-chip {
-    min-height: 12px !important;
-    padding: 0 4px !important;
-    font-size: 6px !important;
+    max-width: 40px !important;
   }
 
   .operator-layout-tablet-optimized .table-seat-stack {
-    min-width: 34px !important;
-    padding: 2px 5px !important;
     font-size: 9px !important;
-  }
-
-  .operator-layout-tablet-optimized .table-seat-subline {
-    font-size: 6px !important;
-    min-height: 8px !important;
-  }
-
-  .operator-layout-tablet-optimized .table-seat-action-line {
-    min-height: 10px !important;
-    margin-top: 3px !important;
-    gap: 3px !important;
   }
 
   .operator-layout-tablet-optimized .table-seat-action-text {
     font-size: 7px !important;
   }
 
-  .operator-layout-tablet-optimized .table-seat-action-allin {
-    font-size: 8px !important;
-  }
-
-  .operator-layout-tablet-optimized .table-seat-action-value {
-    font-size: 8px !important;
-    padding: 1px 4px !important;
-  }
-
-  .operator-layout-tablet-optimized .table-seat-to-act {
-    font-size: 7px !important;
-  }
-
-  /* 작은 테이블 기준 좌석 재배치 */
-  .operator-layout-tablet-optimized .table-seat-pos-1 {
-    top: 4px !important;
-    left: 50% !important;
-    transform: translateX(-50%) !important;
-  }
-
-  .operator-layout-tablet-optimized .table-seat-pos-2 {
-    top: 18px !important;
-    right: 34px !important;
-  }
-
-  .operator-layout-tablet-optimized .table-seat-pos-3 {
-    top: 84px !important;
-    right: 4px !important;
-  }
-
-  .operator-layout-tablet-optimized .table-seat-pos-4 {
-    bottom: 84px !important;
-    right: 4px !important;
-  }
-
-  .operator-layout-tablet-optimized .table-seat-pos-5 {
-    bottom: 18px !important;
-    right: 34px !important;
-  }
-
-  .operator-layout-tablet-optimized .table-seat-pos-6 {
-    bottom: 4px !important;
-    left: 50% !important;
-    transform: translateX(-50%) !important;
-  }
-
-  .operator-layout-tablet-optimized .table-seat-pos-7 {
-    bottom: 18px !important;
-    left: 34px !important;
-  }
-
-  .operator-layout-tablet-optimized .table-seat-pos-8 {
-    bottom: 84px !important;
-    left: 4px !important;
-  }
-
-  .operator-layout-tablet-optimized .table-seat-pos-9 {
-    top: 84px !important;
-    left: 4px !important;
-  }
-
-  .operator-layout-tablet-optimized .table-seat-pos-10 {
-    top: 18px !important;
-    left: 34px !important;
-  }
-
-  /* 하단 패널 크게 */
+  /* ===== 하단 패널 확장 ===== */
   .operator-layout-tablet-optimized .bottom-control-row,
   .operator-layout-tablet-optimized .bottom-control-row-with-showdown {
-    grid-template-columns: 1fr 210px 180px !important;
+    grid-template-columns: 1fr 220px 180px !important;
     gap: 8px !important;
-    align-items: stretch !important;
   }
 
-  .operator-layout-tablet-optimized .showdown-inline-panel {
-    grid-column: 1 / -1 !important;
-  }
-
+  /* ===== 액션 패널 크게 ===== */
   .operator-layout-tablet-optimized .action-panel-compact {
-    max-width: none !important;
-    min-height: 240px !important;
+    min-height: 260px !important;
     padding: 16px !important;
   }
 
@@ -1966,151 +1850,86 @@ select {
   }
 
   .operator-layout-tablet-optimized .action-panel-compact-bottom {
-    grid-template-columns: 300px 1fr !important;
+    grid-template-columns: 320px 1fr !important;
     gap: 14px !important;
   }
 
+  /* ===== 금액 입력 크게 ===== */
   .operator-layout-tablet-optimized .amount-control {
-    grid-template-rows: 74px 74px !important;
-    gap: 10px !important;
+    grid-template-rows: 80px 80px !important;
   }
 
   .operator-layout-tablet-optimized .amount-control-main {
-    grid-template-columns: 78px 1fr 78px !important;
-    height: 74px !important;
+    height: 80px !important;
+    grid-template-columns: 80px 1fr 80px !important;
   }
 
   .operator-layout-tablet-optimized .amount-control-main button {
-    height: 74px !important;
-    min-height: 74px !important;
-    font-size: 17px !important;
+    height: 80px !important;
+    font-size: 18px !important;
     font-weight: 900 !important;
   }
 
   .operator-layout-tablet-optimized .amount-control-main input {
-    height: 74px !important;
-    min-height: 74px !important;
-    font-size: 28px !important;
+    height: 80px !important;
+    font-size: 30px !important;
     font-weight: 900 !important;
   }
 
   .operator-layout-tablet-optimized .amount-quick-buttons {
-    height: 74px !important;
-    gap: 8px !important;
+    height: 80px !important;
   }
 
   .operator-layout-tablet-optimized .amount-quick-buttons button {
-    height: 74px !important;
-    min-height: 74px !important;
+    height: 80px !important;
     font-size: 16px !important;
     font-weight: 900 !important;
   }
 
-  .operator-layout-tablet-optimized .action-panel-compact-buttons-large {
-    gap: 8px !important;
-  }
-
+  /* ===== 액션 버튼 크게 ===== */
   .operator-layout-tablet-optimized .action-panel-compact-buttons-large button {
-    height: 74px !important;
-    min-height: 74px !important;
-    font-size: 20px !important;
+    height: 80px !important;
+    font-size: 22px !important;
     font-weight: 900 !important;
     border-radius: 16px !important;
-    padding: 10px 8px !important;
   }
 
-  .operator-layout-tablet-optimized .blind-editor-inline {
-    min-height: 240px !important;
-  }
-
-  .operator-layout-tablet-optimized .blind-editor-toggle {
-    min-height: 110px !important;
-    padding: 14px !important;
-  }
-
-  .operator-layout-tablet-optimized .blind-editor-title {
-    font-size: 15px !important;
-  }
-
-  .operator-layout-tablet-optimized .blind-editor-summary {
-    font-size: 14px !important;
-  }
-
-  .operator-layout-tablet-optimized .blind-level-live-actions button {
-    min-height: 52px !important;
-    height: 52px !important;
-    font-size: 15px !important;
-    font-weight: 900 !important;
-  }
-
+  /* ===== 블라인드/유틸도 터치용으로 ===== */
+  .operator-layout-tablet-optimized .blind-editor-inline,
   .operator-layout-tablet-optimized .table-utility-panel {
     min-height: 240px !important;
-    padding: 14px !important;
   }
 
-  .operator-layout-tablet-optimized .table-utility-label {
-    font-size: 14px !important;
-  }
-
+  .operator-layout-tablet-optimized .blind-level-live-actions button,
   .operator-layout-tablet-optimized .table-utility-field select,
-  .operator-layout-tablet-optimized .table-utility-panel .chip-race-row select,
-  .operator-layout-tablet-optimized .table-utility-panel .chip-race-row button {
-    min-height: 52px !important;
+  .operator-layout-tablet-optimized .table-utility-panel button {
     height: 52px !important;
     font-size: 15px !important;
     font-weight: 800 !important;
   }
 
+  /* ===== 좌석 상세는 아래로 ===== */
   .operator-layout-tablet-optimized.operator-layout-with-side {
     grid-template-columns: 1fr !important;
   }
-
-  .operator-layout-tablet-optimized .operator-side-col {
-    order: 2 !important;
-  }
 }
 
-@media (max-width: 980px) {
+/* 작은 태블릿 */
+@media (max-width: 1100px) {
   .operator-layout-tablet-optimized .poker-table-oval-operator {
-    width: 500px !important;
-    height: 315px !important;
-  }
-
-  .operator-layout-tablet-optimized .table-seat-hud {
-    width: 88px !important;
-    min-height: 36px !important;
-  }
-
-  .operator-layout-tablet-optimized .bottom-control-row,
-  .operator-layout-tablet-optimized .bottom-control-row-with-showdown {
-    grid-template-columns: 1fr !important;
-  }
-
-  .operator-layout-tablet-optimized .action-panel-compact-bottom {
-    grid-template-columns: 1fr !important;
+    width: 460px !important;
+    height: 290px !important;
   }
 
   .operator-layout-tablet-optimized .action-panel-compact-buttons-large button {
-    height: 68px !important;
-    min-height: 68px !important;
-    font-size: 18px !important;
+    height: 72px !important;
+    font-size: 20px !important;
   }
 
-  .operator-layout-tablet-optimized .amount-control {
-    grid-template-rows: 66px 66px !important;
-  }
-
-  .operator-layout-tablet-optimized .amount-control-main {
-    height: 66px !important;
-    grid-template-columns: 70px 1fr 70px !important;
-  }
-
+  .operator-layout-tablet-optimized .amount-control-main,
   .operator-layout-tablet-optimized .amount-control-main button,
-  .operator-layout-tablet-optimized .amount-control-main input,
-  .operator-layout-tablet-optimized .amount-quick-buttons,
-  .operator-layout-tablet-optimized .amount-quick-buttons button {
-    height: 66px !important;
-    min-height: 66px !important;
+  .operator-layout-tablet-optimized .amount-control-main input {
+    height: 72px !important;
   }
 
   .operator-layout-tablet-optimized .amount-control-main input {
