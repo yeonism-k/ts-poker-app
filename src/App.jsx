@@ -887,12 +887,12 @@ function OvalTableLayout({
     <div className={["table-stage", compact ? "table-stage-compact" : ""].join(" ")}>
       <div className="poker-table-shell">
         <div
-  className={[
-    "poker-table-oval",
-    compact ? "poker-table-oval-compact" : "",
-    compact ? "poker-table-oval-operator" : "",
-  ].join(" ")}
->
+          className={[
+            "poker-table-oval",
+            compact ? "poker-table-oval-compact" : "",
+            compact ? "poker-table-oval-operator" : "",
+          ].join(" ")}
+        >
           <div className="table-center-hud">
             <div className="table-center-street">{currentStreet}</div>
 
@@ -1064,20 +1064,54 @@ function CurrentPlayerActionPanel({ state, onPlayerAction }) {
         </div>
 
         <div className="action-panel-compact-buttons action-panel-compact-buttons-large">
-          <button onClick={() => onPlayerAction("fold")}>Fold</button>
-          <button disabled={!canCheck} onClick={() => onPlayerAction("check")}>
+          <button
+            className="btn-fold"
+            data-action="fold"
+            onClick={() => onPlayerAction("fold")}
+          >
+            Fold
+          </button>
+
+          <button
+            data-action="check"
+            disabled={!canCheck}
+            onClick={() => onPlayerAction("check")}
+          >
             Check
           </button>
-          <button disabled={!canCall} onClick={() => onPlayerAction("call")}>
+
+          <button
+            className="btn-call"
+            data-action="call"
+            disabled={!canCall}
+            onClick={() => onPlayerAction("call")}
+          >
             Call
           </button>
-          <button disabled={!canBet} onClick={() => onPlayerAction("bet", amount)}>
+
+          <button
+            data-action="bet"
+            disabled={!canBet}
+            onClick={() => onPlayerAction("bet", amount)}
+          >
             Bet
           </button>
-          <button disabled={!canRaise} onClick={() => onPlayerAction("raise", amount)}>
+
+          <button
+            className="btn-raise"
+            data-action="raise"
+            disabled={!canRaise}
+            onClick={() => onPlayerAction("raise", amount)}
+          >
             Raise
           </button>
-          <button className="danger" disabled={!canAllIn} onClick={() => onPlayerAction("allin")}>
+
+          <button
+            className="danger"
+            data-action="allin"
+            disabled={!canAllIn}
+            onClick={() => onPlayerAction("allin")}
+          >
             All-in
           </button>
         </div>
@@ -1635,10 +1669,7 @@ export default function App() {
           onRunChipRace={handleRunChipRace}
         />
       ) : mode === "display" ? (
-        <DisplayScreen
-          state={state}
-          positionLabels={positionLabels}
-        />
+        <DisplayScreen state={state} positionLabels={positionLabels} />
       ) : (
         <OperatorScreen
           state={state}

@@ -1465,8 +1465,7 @@ select {
 }
 
 /* =========================================
-   OPERATOR MODE - COMPACT TABLE + BIG ACTION PANEL
-   레이아웃은 유지 / 조작성만 강화
+   OPERATOR MODE - KEEP LAYOUT, ENLARGE ACTION PANEL
    ========================================= */
 
 .operator-layout-tablet-optimized {
@@ -1477,12 +1476,10 @@ select {
   gap: 12px;
 }
 
-/* 좌석관리패널 옆 유지 */
 .operator-layout-tablet-optimized.operator-layout-with-side {
   grid-template-columns: minmax(0, 1fr) 320px;
 }
 
-/* 오퍼레이터 모드에서는 테이블을 항상 더 작게 */
 .operator-layout-tablet-optimized .poker-table-shell {
   overflow: visible;
   justify-content: center;
@@ -1498,7 +1495,6 @@ select {
   inset: 16px 22px;
 }
 
-/* 중앙 HUD도 조금 축소 */
 .operator-layout-tablet-optimized .table-center-hud {
   min-width: 210px;
   max-width: 240px;
@@ -1536,7 +1532,6 @@ select {
   font-size: 12px;
 }
 
-/* 좌석 카드 축소 */
 .operator-layout-tablet-optimized .table-seat-hud {
   width: 104px;
   min-height: 42px;
@@ -1589,7 +1584,6 @@ select {
   font-size: 8px;
 }
 
-/* 작은 테이블 기준 좌석 재배치 */
 .operator-layout-tablet-optimized .table-seat-pos-1 {
   top: 4px;
   left: 50%;
@@ -1597,12 +1591,12 @@ select {
 }
 
 .operator-layout-tablet-optimized .table-seat-pos-2 {
-  top: 24px;
+  top: 20px;
   right: 42px;
 }
 
 .operator-layout-tablet-optimized .table-seat-pos-3 {
-  top: 120px;
+  top: 118px;
   right: 6px;
 }
 
@@ -1633,16 +1627,15 @@ select {
 }
 
 .operator-layout-tablet-optimized .table-seat-pos-9 {
-  top: 120px;
+  top: 118px;
   left: 6px;
 }
 
 .operator-layout-tablet-optimized .table-seat-pos-10 {
-  top: 24px;
+  top: 20px;
   left: 42px;
 }
 
-/* 기존 한 줄 레이아웃 유지 */
 .operator-layout-tablet-optimized .bottom-control-row {
   grid-template-columns: 520px 200px 140px;
   gap: 12px;
@@ -1655,7 +1648,6 @@ select {
   align-items: start;
 }
 
-/* 액션패널만 크게 */
 .operator-layout-tablet-optimized .action-panel-compact {
   max-width: 520px;
   min-height: 220px;
@@ -1676,7 +1668,6 @@ select {
   align-items: stretch;
 }
 
-/* 금액 입력 확대 */
 .operator-layout-tablet-optimized .amount-control {
   grid-template-rows: 68px 68px;
   gap: 8px;
@@ -1715,7 +1706,6 @@ select {
   border-radius: 12px;
 }
 
-/* 액션 버튼 확대 - 레이아웃은 그대로 3x2 */
 .operator-layout-tablet-optimized .action-panel-compact-buttons,
 .operator-layout-tablet-optimized .action-panel-compact-buttons-large {
   display: grid;
@@ -1734,13 +1724,11 @@ select {
   line-height: 1.05;
 }
 
-/* 블라인드/유틸은 기존 느낌 유지 */
 .operator-layout-tablet-optimized .blind-editor-inline,
 .operator-layout-tablet-optimized .table-utility-panel {
   min-height: unset;
 }
 
-/* 데스크톱 조금 좁아질 때 */
 @media (max-width: 1400px) {
   .operator-layout-tablet-optimized.operator-layout-with-side {
     grid-template-columns: minmax(0, 1fr) 300px;
@@ -1754,6 +1742,26 @@ select {
   .operator-layout-tablet-optimized .table-seat-hud {
     width: 98px;
     min-height: 40px;
+  }
+
+  .operator-layout-tablet-optimized .table-seat-pos-2 {
+    top: 20px;
+    right: 42px;
+  }
+
+  .operator-layout-tablet-optimized .table-seat-pos-3 {
+    top: 118px;
+    right: 6px;
+  }
+
+  .operator-layout-tablet-optimized .table-seat-pos-9 {
+    top: 118px;
+    left: 6px;
+  }
+
+  .operator-layout-tablet-optimized .table-seat-pos-10 {
+    top: 20px;
+    left: 42px;
   }
 
   .operator-layout-tablet-optimized .bottom-control-row {
@@ -1881,26 +1889,6 @@ select {
   .operator-layout-tablet-optimized .poker-table-oval-operator {
     width: 540px;
     height: 340px;
-  }
-
-    .operator-layout-tablet-optimized .table-seat-pos-2 {
-    top: 24px;
-    right: 42px;
-  }
-
-  .operator-layout-tablet-optimized .table-seat-pos-3 {
-    top: 120px;
-    right: 6px;
-  }
-
-  .operator-layout-tablet-optimized .table-seat-pos-9 {
-    top: 120px;
-    left: 6px;
-  }
-
-  .operator-layout-tablet-optimized .table-seat-pos-10 {
-    top: 24px;
-    left: 42px;
   }
 
   .operator-layout-tablet-optimized .table-seat-hud {
@@ -2138,6 +2126,49 @@ select {
   .winner-list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+}
+
+/* =========================================
+   ACTION BUTTON COLOR - PARTIAL SYSTEM
+   Fold / Call / Raise만 강조
+   ========================================= */
+
+.btn-fold,
+button[data-action="fold"] {
+  background: #2563eb !important;
+  color: #ffffff !important;
+}
+
+.btn-fold:hover,
+button[data-action="fold"]:hover {
+  background: #1d4ed8 !important;
+}
+
+.btn-call,
+button[data-action="call"] {
+  background: #16a34a !important;
+  color: #ffffff !important;
+}
+
+.btn-call:hover,
+button[data-action="call"]:hover {
+  background: #15803d !important;
+}
+
+.btn-raise,
+button[data-action="raise"] {
+  background: #ea580c !important;
+  color: #ffffff !important;
+}
+
+.btn-raise:hover,
+button[data-action="raise"]:hover {
+  background: #c2410c !important;
+}
+
+.action-panel-compact-buttons button:disabled,
+.action-panel-compact-buttons-large button:disabled {
+  opacity: 0.45 !important;
 }
 
 @keyframes seatGlow {
