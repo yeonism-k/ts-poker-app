@@ -1291,14 +1291,11 @@ function ModeTabs({ mode, onChange }) {
   );
 }
 
-function DisplayScreen({ state, positionLabels, onSwitchToOperator }) {
+function DisplayScreen({ state, positionLabels }) {
   return (
     <div className="display-screen">
       <div className="display-mode-topbar">
         <div className="display-mode-badge">DISPLAY MODE</div>
-        <button type="button" onClick={onSwitchToOperator}>
-          Operator로 전환
-        </button>
       </div>
 
       <div className="display-mode-table-wrap">
@@ -1620,10 +1617,6 @@ export default function App() {
             </button>
           )}
 
-          {mode === "display" && state.street !== "setup" && (
-            <button onClick={() => setMode("operator")}>Operator 열기</button>
-          )}
-
           <button className="danger" onClick={resetAll}>
             전체 리셋
           </button>
@@ -1645,7 +1638,6 @@ export default function App() {
         <DisplayScreen
           state={state}
           positionLabels={positionLabels}
-          onSwitchToOperator={() => setMode("operator")}
         />
       ) : (
         <OperatorScreen

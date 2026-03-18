@@ -1602,7 +1602,7 @@ select {
 }
 
 .operator-layout-tablet-optimized .table-seat-pos-3 {
-  top: 100px;
+  top: 118px;
   right: 6px;
 }
 
@@ -1633,7 +1633,7 @@ select {
 }
 
 .operator-layout-tablet-optimized .table-seat-pos-9 {
-  top: 100px;
+  top: 118px;
   left: 6px;
 }
 
@@ -1881,6 +1881,26 @@ select {
   .operator-layout-tablet-optimized .poker-table-oval-operator {
     width: 540px;
     height: 340px;
+  }
+
+    .operator-layout-tablet-optimized .table-seat-pos-2 {
+    top: 20px;
+    right: 42px;
+  }
+
+  .operator-layout-tablet-optimized .table-seat-pos-3 {
+    top: 118px;
+    right: 6px;
+  }
+
+  .operator-layout-tablet-optimized .table-seat-pos-9 {
+    top: 118px;
+    left: 6px;
+  }
+
+  .operator-layout-tablet-optimized .table-seat-pos-10 {
+    top: 20px;
+    left: 42px;
   }
 
   .operator-layout-tablet-optimized .table-seat-hud {
