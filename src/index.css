@@ -1602,7 +1602,7 @@ select {
 }
 
 .operator-layout-tablet-optimized .table-seat-pos-3 {
-  top: 118px;
+  top: 120px;
   right: 6px;
 }
 
@@ -1633,7 +1633,7 @@ select {
 }
 
 .operator-layout-tablet-optimized .table-seat-pos-9 {
-  top: 118px;
+  top: 120px;
   left: 6px;
 }
 
@@ -1884,22 +1884,22 @@ select {
   }
 
     .operator-layout-tablet-optimized .table-seat-pos-2 {
-    top: 20px;
+    top: 24px;
     right: 42px;
   }
 
   .operator-layout-tablet-optimized .table-seat-pos-3 {
-    top: 118px;
+    top: 120px;
     right: 6px;
   }
 
   .operator-layout-tablet-optimized .table-seat-pos-9 {
-    top: 118px;
+    top: 120px;
     left: 6px;
   }
 
   .operator-layout-tablet-optimized .table-seat-pos-10 {
-    top: 20px;
+    top: 24px;
     left: 42px;
   }
 
