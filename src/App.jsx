@@ -103,7 +103,7 @@ function clampLevelIndex(levels, index, chipUnit = DEFAULT_CHIP_UNIT) {
 
 function levelSummary(level) {
   if (!level) return "-";
-  return `${level.smallBlind} / ${level.bigBlind} / ${level.ante}`;
+  return `${formatBlind(level.smallBlind)} / ${formatBlind(level.bigBlind)} / ${formatBlind(level.ante)}`;
 }
 
 function formatBlind(value) {
@@ -179,48 +179,79 @@ function getPositionOrder(playerCount) {
 function getPositionLabels(state) {
   if (state.street === "setup") return {};
 
-  const handSeats = getSeatsInCurrentHand(state);
-  const count = handSeats.length;
-  if (count < 2) return {};
-
   const labels = {};
+  const handSeats = getSeatsInCurrentHand(state);
+  const activeCount = handSeats.length;
+  if (activeCount < 2) return labels;
+
+  const forced = state.forcedBets || {};
+  const buttonSeatIndex =
+    Number.isInteger(forced.buttonSeatIndex) && forced.buttonSeatIndex >= 0
+      ? forced.buttonSeatIndex
+      : state.dealerSeatIndex;
+
+  const sbSeatIndex =
+    Number.isInteger(forced.sbSeatIndex) && forced.sbSeatIndex >= 0
+      ? forced.sbSeatIndex
+      : -1;
+
+  const bbSeatIndex =
+    Number.isInteger(forced.bbSeatIndex) && forced.bbSeatIndex >= 0
+      ? forced.bbSeatIndex
+      : -1;
+
   const handSeatSet = new Set(handSeats);
 
-  const dealerSeat = handSeatSet.has(state.dealerSeatIndex)
-    ? state.dealerSeatIndex
-    : handSeats[0];
-
-  if (count === 2) {
-    let otherSeat = -1;
-
-    for (let i = 1; i <= MAX_SEATS; i++) {
-      const idx = (dealerSeat + i) % MAX_SEATS;
-      if (handSeatSet.has(idx)) {
-        otherSeat = idx;
-        break;
-      }
+  // Heads-up: button seat is D/SB, other is BB
+  if (activeCount === 2) {
+    if (buttonSeatIndex >= 0 && state.seats[buttonSeatIndex]) {
+      labels[buttonSeatIndex] =
+        handSeatSet.has(buttonSeatIndex) ? "D/SB" : "DEAD BTN";
     }
 
-    labels[dealerSeat] = "D/SB";
-    if (otherSeat >= 0) labels[otherSeat] = "BB";
+    if (bbSeatIndex >= 0 && handSeatSet.has(bbSeatIndex)) {
+      labels[bbSeatIndex] = "BB";
+    }
+
     return labels;
   }
 
-  labels[dealerSeat] = "BTN";
-
-  const orderAfterDealer = [];
-  for (let i = 1; i <= MAX_SEATS; i++) {
-    const idx = (dealerSeat + i) % MAX_SEATS;
-    if (handSeatSet.has(idx)) {
-      orderAfterDealer.push(idx);
-    }
+  // 3명 이상
+  if (buttonSeatIndex >= 0 && state.seats[buttonSeatIndex]) {
+    labels[buttonSeatIndex] = handSeatSet.has(buttonSeatIndex) ? "BTN" : "DEAD BTN";
   }
 
-  const positionOrder = getPositionOrder(count);
+  if (sbSeatIndex >= 0 && handSeatSet.has(sbSeatIndex)) {
+    labels[sbSeatIndex] = "SB";
+  }
 
-  orderAfterDealer.forEach((seatIndex, idx) => {
-    const label = positionOrder[idx];
-    if (label) labels[seatIndex] = label;
+  if (bbSeatIndex >= 0 && handSeatSet.has(bbSeatIndex)) {
+    labels[bbSeatIndex] = "BB";
+  }
+
+  const roleSeats = handSeats.filter(
+    (seatIndex) =>
+      seatIndex !== buttonSeatIndex &&
+      seatIndex !== sbSeatIndex &&
+      seatIndex !== bbSeatIndex
+  );
+
+  if (!roleSeats.length) return labels;
+
+  const positionOrder = getPositionOrder(activeCount).filter(
+    (role) => role !== "SB" && role !== "BB"
+  );
+
+  // button 다음부터 시계방향으로 정렬
+  const orderedRoleSeats = [...roleSeats].sort((a, b) => {
+    const da = (a - buttonSeatIndex + MAX_SEATS) % MAX_SEATS;
+    const db = (b - buttonSeatIndex + MAX_SEATS) % MAX_SEATS;
+    return da - db;
+  });
+
+  orderedRoleSeats.forEach((seatIndex, idx) => {
+    const role = positionOrder[idx];
+    if (role) labels[seatIndex] = role;
   });
 
   return labels;
@@ -789,13 +820,17 @@ function SeatHudCard({ player, seatIndex, isCurrent, positionLabel = "" }) {
               <div className="table-seat-name">{player.name}</div>
               {positionLabel ? (
                 <span
-                  className={
-                    positionLabel === "BTN" || positionLabel === "D/SB"
-                      ? "table-position-chip table-position-btn"
-                      : "table-position-chip"
-                  }
+                  className={[
+                    "table-position-chip",
+                    positionLabel === "BTN" ||
+                    positionLabel === "D/SB" ||
+                    positionLabel === "DEAD BTN"
+                      ? "table-position-btn"
+                      : "",
+                    positionLabel === "DEAD BTN" ? "table-position-dead-btn" : "",
+                  ].join(" ")}
                 >
-                  {positionLabel}
+                  {positionLabel === "DEAD BTN" ? "BTN" : positionLabel}
                 </span>
               ) : null}
             </div>
@@ -991,19 +1026,19 @@ function CurrentPlayerActionPanel({ state, onPlayerAction }) {
               </button>
             </div>
 
-<div className="amount-quick-buttons">
-  <button type="button" onClick={() => applyAmount(amount - state.chipUnit * 5)}>
-    -{formatPot(state.chipUnit * 5)}
-  </button>
+            <div className="amount-quick-buttons">
+              <button type="button" onClick={() => applyAmount(amount - state.chipUnit * 5)}>
+                -{formatPot(state.chipUnit * 5)}
+              </button>
 
-  <button type="button" onClick={() => applyAmount(amount + state.chipUnit * 10)}>
-    +{formatPot(state.chipUnit * 10)}
-  </button>
+              <button type="button" onClick={() => applyAmount(amount + state.chipUnit * 10)}>
+                +{formatPot(state.chipUnit * 10)}
+              </button>
 
-  <button type="button" onClick={() => applyAmount(amount + state.chipUnit * 5)}>
-    +{formatPot(state.chipUnit * 5)}
-  </button>
-</div>
+              <button type="button" onClick={() => applyAmount(amount + state.chipUnit * 5)}>
+                +{formatPot(state.chipUnit * 5)}
+              </button>
+            </div>
           </div>
         </div>
 

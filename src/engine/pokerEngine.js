@@ -150,10 +150,25 @@ function getNextOccupiedFromList(occupied, fromSeatIndex, step = 1) {
   return occupied[(pos + step) % occupied.length];
 }
 
-function getBlindAssignments(seats, dealerSeatIndex) {
-  const occupied = occupiedSeatIndices(seats);
+function getFirstAvailableFromOccupied(seats, occupied, fromSeatIndex) {
+  if (!occupied.length) return -1;
 
-  if (occupied.length < 2) {
+  const startPos = occupied.indexOf(fromSeatIndex);
+  if (startPos === -1) return -1;
+
+  for (let step = 0; step < occupied.length; step++) {
+    const seatIndex = occupied[(startPos + step) % occupied.length];
+    if (isAvailableForHand(seats[seatIndex])) return seatIndex;
+  }
+
+  return -1;
+}
+
+function getBlindAssignments(seats, dealerSeatIndex, previousForcedBets = null) {
+  const occupied = occupiedSeatIndices(seats);
+  const active = activeSeatIndices(seats);
+
+  if (occupied.length < 2 || active.length < 2) {
     return {
       buttonSeatIndex: dealerSeatIndex,
       sbPositionSeatIndex: -1,
@@ -163,36 +178,63 @@ function getBlindAssignments(seats, dealerSeatIndex) {
     };
   }
 
-  if (occupied.length === 2) {
-    const buttonSeatIndex = dealerSeatIndex;
-    const otherSeatIndex = getNextOccupiedFromList(occupied, dealerSeatIndex, 1);
+  // Heads-up:
+  // dealer = SB, other = BB
+  // Special fix for 3-handed -> heads-up transition:
+  // if previous hand BB is still active, that player becomes next D/SB.
+  if (active.length === 2) {
+    const prevBbSeatIndex = previousForcedBets?.bbSeatIndex;
+    const prevButtonSeatIndex = previousForcedBets?.buttonSeatIndex;
+
+    let buttonSeatIndex = -1;
+
+    if (
+      Number.isInteger(prevBbSeatIndex) &&
+      prevBbSeatIndex >= 0 &&
+      active.includes(prevBbSeatIndex)
+    ) {
+      buttonSeatIndex = prevBbSeatIndex;
+    } else if (dealerSeatIndex >= 0 && active.includes(dealerSeatIndex)) {
+      buttonSeatIndex = dealerSeatIndex;
+    } else if (
+      Number.isInteger(prevButtonSeatIndex) &&
+      prevButtonSeatIndex >= 0 &&
+      active.includes(prevButtonSeatIndex)
+    ) {
+      buttonSeatIndex = prevButtonSeatIndex;
+    } else {
+      buttonSeatIndex = active[0];
+    }
+
+    const bbSeatIndex = nextSeatIndex(
+      seats,
+      buttonSeatIndex,
+      (seat) => isAvailableForHand(seat)
+    );
 
     return {
       buttonSeatIndex,
       sbPositionSeatIndex: buttonSeatIndex,
-      bbPositionSeatIndex: otherSeatIndex,
-      sbSeatIndex: canPostBlind(seats[buttonSeatIndex]) ? buttonSeatIndex : -1,
-      bbSeatIndex: canPostBlind(seats[otherSeatIndex]) ? otherSeatIndex : -1,
+      bbPositionSeatIndex: bbSeatIndex,
+      sbSeatIndex: buttonSeatIndex,
+      bbSeatIndex,
     };
   }
 
-  const buttonSeatIndex = dealerSeatIndex;
+  // 3+ players: dead button / dead SB allowed
+  const buttonSeatIndex = occupied.includes(dealerSeatIndex) ? dealerSeatIndex : occupied[0];
   const sbPositionSeatIndex = getNextOccupiedFromList(occupied, buttonSeatIndex, 1);
-  const sbSeatIndex = canPostBlind(seats[sbPositionSeatIndex]) ? sbPositionSeatIndex : -1;
+  const bbPositionSeatIndex = getNextOccupiedFromList(occupied, sbPositionSeatIndex, 1);
 
-  let bbPositionSeatIndex = -1;
-  let bbSeatIndex = -1;
+  const sbSeatIndex =
+    sbPositionSeatIndex >= 0 && isAvailableForHand(seats[sbPositionSeatIndex])
+      ? sbPositionSeatIndex
+      : -1;
 
-  for (let step = 2; step <= occupied.length + 1; step++) {
-    const candidate = getNextOccupiedFromList(occupied, buttonSeatIndex, step);
-    if (candidate === -1) break;
-
-    if (canPostBlind(seats[candidate])) {
-      bbPositionSeatIndex = candidate;
-      bbSeatIndex = candidate;
-      break;
-    }
-  }
+  const bbSeatIndex =
+    bbPositionSeatIndex >= 0
+      ? getFirstAvailableFromOccupied(seats, occupied, bbPositionSeatIndex)
+      : -1;
 
   return {
     buttonSeatIndex,
@@ -203,11 +245,15 @@ function getBlindAssignments(seats, dealerSeatIndex) {
   };
 }
 
-function getFirstToActPreflop(seats, dealerSeatIndex) {
+function getFirstToActPreflop(seats, dealerSeatIndex, forcedBets = null) {
   const active = activeSeatIndices(seats);
   if (active.length < 2) return -1;
 
-  const { bbSeatIndex } = getBlindAssignments(seats, dealerSeatIndex);
+  const bbSeatIndex =
+    forcedBets?.bbSeatIndex != null && forcedBets.bbSeatIndex >= 0
+      ? forcedBets.bbSeatIndex
+      : getBlindAssignments(seats, dealerSeatIndex, forcedBets).bbSeatIndex;
+
   if (bbSeatIndex === -1) return active[0];
 
   return nextSeatIndex(seats, bbSeatIndex, (p) => canAct(p));
@@ -570,7 +616,24 @@ function finishHandState(state) {
   state.currentBet = 0;
   state.minRaise = state.bigBlind;
   state.streetBetLevel = 0;
+
+  state.lastHandForcedBets = clone(
+    state.forcedBets || {
+      buttonSeatIndex: -1,
+      sbPositionSeatIndex: -1,
+      bbPositionSeatIndex: -1,
+      sbSeatIndex: -1,
+      bbSeatIndex: -1,
+      sbAmount: 0,
+      bbAmount: 0,
+      anteAmount: 0,
+    }
+  );
+
   state.forcedBets = {
+    buttonSeatIndex: -1,
+    sbPositionSeatIndex: -1,
+    bbPositionSeatIndex: -1,
     sbSeatIndex: -1,
     bbSeatIndex: -1,
     sbAmount: 0,
@@ -744,6 +807,19 @@ export function createInitialSetup() {
     pendingExcess: [],
     pots: [],
     forcedBets: {
+      buttonSeatIndex: -1,
+      sbPositionSeatIndex: -1,
+      bbPositionSeatIndex: -1,
+      sbSeatIndex: -1,
+      bbSeatIndex: -1,
+      sbAmount: 0,
+      bbAmount: 0,
+      anteAmount: 0,
+    },
+    lastHandForcedBets: {
+      buttonSeatIndex: -1,
+      sbPositionSeatIndex: -1,
+      bbPositionSeatIndex: -1,
       sbSeatIndex: -1,
       bbSeatIndex: -1,
       sbAmount: 0,
@@ -777,6 +853,10 @@ export function startHand(setupState, keepStacks = false) {
 
   applyPendingBlindLevel(state);
 
+  // IMPORTANT:
+  // Use lastHandForcedBets first, because finishHandState resets forcedBets.
+  const previousForcedBets = clone(state.lastHandForcedBets || state.forcedBets || null);
+
   state.street = "preflop";
   state.currentBet = 0;
   state.minRaise = n(state.bigBlind, chipUnit);
@@ -787,6 +867,9 @@ export function startHand(setupState, keepStacks = false) {
   state.pendingExcess = [];
   state.pots = [];
   state.forcedBets = {
+    buttonSeatIndex: -1,
+    sbPositionSeatIndex: -1,
+    bbPositionSeatIndex: -1,
     sbSeatIndex: -1,
     bbSeatIndex: -1,
     sbAmount: 0,
@@ -829,8 +912,15 @@ export function startHand(setupState, keepStacks = false) {
   const sb = n(state.smallBlind, 0);
   const bb = n(state.bigBlind, 0);
 
-  const { sbPositionSeatIndex, bbPositionSeatIndex, sbSeatIndex, bbSeatIndex } =
-    getBlindAssignments(state.seats, state.dealerSeatIndex);
+  const {
+    buttonSeatIndex,
+    sbPositionSeatIndex,
+    bbPositionSeatIndex,
+    sbSeatIndex,
+    bbSeatIndex,
+  } = getBlindAssignments(state.seats, state.dealerSeatIndex, previousForcedBets);
+
+  state.dealerSeatIndex = buttonSeatIndex;
 
   const sbPaid = sbSeatIndex >= 0 ? pay(state.seats[sbSeatIndex], sb, chipUnit, true) : 0;
   const bbPaid = bbSeatIndex >= 0 ? pay(state.seats[bbSeatIndex], bb, chipUnit, true) : 0;
@@ -856,8 +946,11 @@ export function startHand(setupState, keepStacks = false) {
   }
 
   state.forcedBets = {
-    sbSeatIndex: sbPositionSeatIndex,
-    bbSeatIndex: bbPositionSeatIndex,
+    buttonSeatIndex,
+    sbPositionSeatIndex,
+    bbPositionSeatIndex,
+    sbSeatIndex,
+    bbSeatIndex,
     sbAmount: sbPaid,
     bbAmount: bbPaid,
     anteAmount: bbAntePaid,
@@ -867,17 +960,28 @@ export function startHand(setupState, keepStacks = false) {
   state.minRaise = bb;
 
   if (sbPositionSeatIndex >= 0) {
-    if (sbPaid > 0) {
+    if (sbSeatIndex >= 0 && sbPaid > 0) {
       state.log.push(`${state.seats[sbSeatIndex].name} posts SB ${sbPaid}`);
     } else {
       state.log.push(`Seat ${sbPositionSeatIndex + 1} is dead SB`);
     }
   }
 
-  if (bbPositionSeatIndex >= 0 && bbSeatIndex >= 0) {
-    state.log.push(`${state.seats[bbSeatIndex].name} posts BB ${bbPaid}`);
-    if (bbAntePaid > 0) {
-      state.log.push(`${state.seats[bbSeatIndex].name} posts BB Ante ${bbAntePaid}`);
+  if (bbPositionSeatIndex >= 0) {
+    if (bbSeatIndex >= 0) {
+      if (bbSeatIndex === bbPositionSeatIndex) {
+        state.log.push(`${state.seats[bbSeatIndex].name} posts BB ${bbPaid}`);
+      } else {
+        state.log.push(
+          `Seat ${bbPositionSeatIndex + 1} is dead BB position, ${state.seats[bbSeatIndex].name} posts BB ${bbPaid}`
+        );
+      }
+
+      if (bbAntePaid > 0) {
+        state.log.push(`${state.seats[bbSeatIndex].name} posts BB Ante ${bbAntePaid}`);
+      }
+    } else {
+      state.log.push(`Seat ${bbPositionSeatIndex + 1} is dead BB`);
     }
   }
 
@@ -894,7 +998,11 @@ export function startHand(setupState, keepStacks = false) {
     state.seats[bbSeatIndex].acted = false;
   }
 
-  state.currentSeatIndex = getFirstToActPreflop(state.seats, state.dealerSeatIndex);
+  state.currentSeatIndex = getFirstToActPreflop(
+    state.seats,
+    state.dealerSeatIndex,
+    state.forcedBets
+  );
 
   return updateDerived(state);
 }
@@ -904,9 +1012,7 @@ export function startNextHand(prevState) {
   const occupiedSeats = occupiedSeatIndices(next.seats);
 
   if (occupiedSeats.length) {
-    const pos = occupiedSeats.indexOf(next.dealerSeatIndex);
-    next.dealerSeatIndex =
-      pos === -1 ? occupiedSeats[0] : occupiedSeats[(pos + 1) % occupiedSeats.length];
+    next.dealerSeatIndex = getNextOccupiedFromList(occupiedSeats, next.dealerSeatIndex, 1);
   }
 
   applyPendingBlindLevel(next);
@@ -943,6 +1049,9 @@ export function getMinRaiseTo(state, seatIndex) {
 export function getForcedBetMarkers(state) {
   if (!state || state.street !== "preflop") {
     return {
+      buttonSeatIndex: -1,
+      sbPositionSeatIndex: -1,
+      bbPositionSeatIndex: -1,
       sbSeatIndex: -1,
       bbSeatIndex: -1,
       sbAmount: 0,
@@ -953,6 +1062,9 @@ export function getForcedBetMarkers(state) {
 
   return (
     state.forcedBets || {
+      buttonSeatIndex: -1,
+      sbPositionSeatIndex: -1,
+      bbPositionSeatIndex: -1,
       sbSeatIndex: -1,
       bbSeatIndex: -1,
       sbAmount: 0,
@@ -1285,6 +1397,18 @@ export function removePlayerFromSeat(prevState, seatIndex) {
     state.currentSeatIndex = nextSeatIndex(state.seats, seatIndex, (p) => canAct(p));
   }
 
+  if (state.forcedBets?.buttonSeatIndex === seatIndex) {
+    state.forcedBets.buttonSeatIndex = -1;
+  }
+
+  if (state.forcedBets?.sbPositionSeatIndex === seatIndex) {
+    state.forcedBets.sbPositionSeatIndex = -1;
+  }
+
+  if (state.forcedBets?.bbPositionSeatIndex === seatIndex) {
+    state.forcedBets.bbPositionSeatIndex = -1;
+  }
+
   if (state.forcedBets?.sbSeatIndex === seatIndex) {
     state.forcedBets.sbSeatIndex = -1;
     state.forcedBets.sbAmount = 0;
@@ -1321,11 +1445,35 @@ export function swapSeats(prevState, seatA, seatB) {
   if (state.currentSeatIndex === seatA) state.currentSeatIndex = seatB;
   else if (state.currentSeatIndex === seatB) state.currentSeatIndex = seatA;
 
+  if (state.forcedBets?.buttonSeatIndex === seatA) state.forcedBets.buttonSeatIndex = seatB;
+  else if (state.forcedBets?.buttonSeatIndex === seatB) state.forcedBets.buttonSeatIndex = seatA;
+
+  if (state.forcedBets?.sbPositionSeatIndex === seatA) state.forcedBets.sbPositionSeatIndex = seatB;
+  else if (state.forcedBets?.sbPositionSeatIndex === seatB) state.forcedBets.sbPositionSeatIndex = seatA;
+
+  if (state.forcedBets?.bbPositionSeatIndex === seatA) state.forcedBets.bbPositionSeatIndex = seatB;
+  else if (state.forcedBets?.bbPositionSeatIndex === seatB) state.forcedBets.bbPositionSeatIndex = seatA;
+
   if (state.forcedBets?.sbSeatIndex === seatA) state.forcedBets.sbSeatIndex = seatB;
   else if (state.forcedBets?.sbSeatIndex === seatB) state.forcedBets.sbSeatIndex = seatA;
 
   if (state.forcedBets?.bbSeatIndex === seatA) state.forcedBets.bbSeatIndex = seatB;
   else if (state.forcedBets?.bbSeatIndex === seatB) state.forcedBets.bbSeatIndex = seatA;
+
+  if (state.lastHandForcedBets?.buttonSeatIndex === seatA) state.lastHandForcedBets.buttonSeatIndex = seatB;
+  else if (state.lastHandForcedBets?.buttonSeatIndex === seatB) state.lastHandForcedBets.buttonSeatIndex = seatA;
+
+  if (state.lastHandForcedBets?.sbPositionSeatIndex === seatA) state.lastHandForcedBets.sbPositionSeatIndex = seatB;
+  else if (state.lastHandForcedBets?.sbPositionSeatIndex === seatB) state.lastHandForcedBets.sbPositionSeatIndex = seatA;
+
+  if (state.lastHandForcedBets?.bbPositionSeatIndex === seatA) state.lastHandForcedBets.bbPositionSeatIndex = seatB;
+  else if (state.lastHandForcedBets?.bbPositionSeatIndex === seatB) state.lastHandForcedBets.bbPositionSeatIndex = seatA;
+
+  if (state.lastHandForcedBets?.sbSeatIndex === seatA) state.lastHandForcedBets.sbSeatIndex = seatB;
+  else if (state.lastHandForcedBets?.sbSeatIndex === seatB) state.lastHandForcedBets.sbSeatIndex = seatA;
+
+  if (state.lastHandForcedBets?.bbSeatIndex === seatA) state.lastHandForcedBets.bbSeatIndex = seatB;
+  else if (state.lastHandForcedBets?.bbSeatIndex === seatB) state.lastHandForcedBets.bbSeatIndex = seatA;
 
   state.log.push(`Swapped seat ${seatA + 1} and seat ${seatB + 1}`);
   return state;
